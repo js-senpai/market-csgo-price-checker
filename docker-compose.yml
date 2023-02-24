@@ -1,0 +1,52 @@
+version: "3.9"
+services:
+  mongo-csgo-checker:
+    image: mongo:latest
+    restart: on-failure
+    env_file:
+      - .env
+    environment:
+      - TZ=Europe/Kiev
+      - MONGO_INITDB_ROOT_USERNAME=$MONGO_USERNAME
+      - MONGO_INITDB_ROOT_PASSWORD=$MONGO_PASSWORD
+    ports:
+      - "27021:27017"
+    networks:
+      - steam-csgo-checker
+    volumes:
+      - db:/data/db
+  redis-csgo-checker:
+    command: redis-server --appendonly yes --replica-read-only no
+    image: redis:alpine
+    restart: on-failure
+    environment:
+      - ALLOW_EMPTY_PASSWORD=yes
+    ports:
+      - "6380:6379"
+    volumes:
+      - redis-cache:/data/redis
+    networks:
+      - steam-csgo-checker
+  steam-csgo-checker:
+    build:
+      dockerfile: Dockerfile
+      context: .
+    networks:
+      - steam-csgo-checker
+    environment:
+      - TZ=Europe/Kiev
+    env_file:
+      - .env
+    restart: on-failure
+    ports:
+      - "3000:3000"
+    depends_on:
+      - mongo-csgo-checker
+      - redis-csgo-checker
+volumes:
+  redis-cache:
+    driver: local
+  db:
+networks:
+  steam-csgo-checker:
+    driver: bridge
