@@ -1,6 +1,6 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { PRODUCT_STATUS } from '../constants/mongo.constants';
 import { HydratedDocument } from 'mongoose';
+import { PRODUCT_STATUS } from '../enums/mongo.enum';
 
 export type TmOnSaleDocument = HydratedDocument<TmOnSale>;
 
@@ -29,7 +29,7 @@ export class TmOnSale {
     required: true,
     type: String,
     validate: {
-      validator: (value) => PRODUCT_STATUS.includes(value),
+      validator: (value) => Object.values(PRODUCT_STATUS).includes(value),
       message: 'Status validation failed',
     },
     default: 'on_sale',

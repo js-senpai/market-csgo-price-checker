@@ -12,10 +12,7 @@ export class TmOnSaleLog {
   @Prop({ unique: true, required: true, type: String })
   jobId: string;
 
-  @Prop({ required: true, type: String, default: 1 })
-  queueNumber: number;
-
-  @Prop({ required: false, type: String })
+  @Prop({ required: true, type: String })
   name: string;
 
   @Prop({ required: true, type: String })

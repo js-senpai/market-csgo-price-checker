@@ -2,7 +2,7 @@ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument, Types } from 'mongoose';
 import { TmHistory } from './tm-history.schema';
 import { TmOnSale } from './tm-on-sale.schema';
-
+import * as paginate from 'mongoose-paginate-v2';
 export type MarketHashNameDocument = HydratedDocument<MarketHashName>;
 
 @Schema({
@@ -17,12 +17,14 @@ export class MarketHashName {
   @Prop({ required: true, type: Number, default: 1 })
   value: number;
 
-  @Prop({ type: Types.ObjectId, ref: 'tmHistory' })
+  @Prop({ type: Types.ObjectId, ref: 'TmHistory', default: null })
   priceHistory: TmHistory;
 
-  @Prop({ type: Types.ObjectId, ref: 'tmOnSale' })
+  @Prop({ type: Types.ObjectId, ref: 'TmOnSale', default: null })
   priceInfo: TmOnSale;
 }
 
 export const MarketHashNameSchema =
   SchemaFactory.createForClass(MarketHashName);
+
+MarketHashNameSchema.plugin(paginate);

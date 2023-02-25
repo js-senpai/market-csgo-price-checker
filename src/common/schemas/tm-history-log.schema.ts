@@ -4,7 +4,7 @@ import { HydratedDocument } from 'mongoose';
 export type TmHistoryLogDocument = HydratedDocument<TmHistoryLog>;
 
 @Schema({
-  collection: 'TmHistoryLog',
+  collection: 'tmHistoryLog',
   versionKey: false,
   timestamps: { createdAt: 'createdAt', updatedAt: 'updatedAt' },
 })
