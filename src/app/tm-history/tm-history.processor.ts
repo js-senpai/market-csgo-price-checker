@@ -37,57 +37,79 @@ export class TmHistoryProcessor {
     const { docs = [], name = '' } = job.data;
     let totalOnSale = 0;
     let totalNotFound = 0;
+    let currentName = '';
     try {
       let keyIndex = 0;
-      this.logger.log(`The history list with name "${name}" has started`);
-      for await (const { _id, name, priceHistory = null } of docs) {
+      this.logger.log(
+        `The history list with name "${name}" has started`,
+        TmHistoryProcessor.name,
+      );
+      for (const { _id, name } of docs) {
+        currentName = name;
         const {
           data: { data = null },
+        }: {
+          data: {
+            data: {
+              [key: string]: {
+                history: [number, number][];
+              };
+            };
+          };
         } = await axios.get(
           `${this.configService.get(
             'CSGO_MARKET_URL',
-          )}/get-list-items-info?key=${
-            TM_KEYS[keyIndex]
-          }&list_hash_name[]=${name}`,
+          )}/get-list-items-info?key=${TM_KEYS[keyIndex]}`,
+          {
+            params: {
+              'list_hash_name[]': name,
+            },
+          },
         );
-        if (!priceHistory && data) {
-          const createData = await this.tmHistoryModel.create({
-            price: +data.price / 100,
-            status: PRODUCT_STATUS.ON_SALE,
-          });
-          // Update parent
+        const getData = Object.values({ ...data }).flat(1);
+        if (!getData.length) {
           await this.marketHashNameModel.updateOne(
             {
               _id,
             },
             {
-              priceInfo: createData._id,
+              status: PRODUCT_STATUS.ON_SALE,
+            },
+          );
+          totalNotFound += 1;
+        } else {
+          const filteredData = getData.flatMap(({ history = [] }) => history);
+          for (const [id, price] of filteredData) {
+            await this.tmHistoryModel.updateOne(
+              {
+                id,
+              },
+              {
+                price,
+              },
+            );
+          }
+          const getNewItems = await this.tmHistoryModel
+            .find({
+              id: {
+                $in: filteredData.map(([id]) => id),
+              },
+            })
+            .select('_id');
+          await this.marketHashNameModel.updateOne(
+            {
+              _id,
+            },
+            {
+              status: PRODUCT_STATUS.ON_SALE,
+              $addToSet: {
+                priceHistory: {
+                  $each: getNewItems.map(({ _id }) => _id),
+                },
+              },
             },
           );
           totalOnSale += 1;
-        } else {
-          if (!data) {
-            await this.tmHistoryModel.updateOne(
-              {
-                _id: priceHistory._id,
-              },
-              {
-                status: PRODUCT_STATUS.NEED_CHECK,
-              },
-            );
-            totalNotFound += 1;
-          } else {
-            await this.tmHistoryModel.updateOne(
-              {
-                _id: priceHistory._id,
-              },
-              {
-                status: PRODUCT_STATUS.ON_SALE,
-                price: +data.price / 100,
-              },
-            );
-            totalOnSale += 1;
-          }
         }
         if (keyIndex + 1 === TM_KEYS.length) {
           keyIndex = 0;
@@ -96,7 +118,8 @@ export class TmHistoryProcessor {
         }
       }
       this.logger.log(
-        `The history list with name "${name}" has finished. Total items with status "on_sale" - ${totalOnSale}.Total items with status "not_found" - ${totalNotFound}.`,
+        `The history list with name "${name}" has finished. Total items with status "on_sale" - ${totalOnSale}.Total items with status "not_found" - ${totalNotFound}.The error was in an interaction where the item had the name "${currentName}".`,
+        TmHistoryProcessor.name,
       );
       return {
         ok: 'The task has successfully finished',
@@ -104,11 +127,12 @@ export class TmHistoryProcessor {
     } catch (e) {
       this.logger.error(
         `Error in start method. The list name ${name}. Response status ${
-          e?.status || 500
+          e?.response?.status || 500
         } `,
         e.stack,
         TmHistoryProcessor.name,
       );
+      throw e;
     }
   }
 }

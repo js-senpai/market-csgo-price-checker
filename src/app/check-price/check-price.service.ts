@@ -7,7 +7,6 @@ import {
   MarketHashNameDocument,
 } from '../../common/schemas/market-hash-name.schema';
 import { Model, PaginateModel } from 'mongoose';
-import { PRODUCT_STATUS } from '../../common/enums/mongo.enum';
 import {
   TmHistory,
   TmHistoryDocument,
@@ -16,7 +15,8 @@ import {
   TmOnSale,
   TmOnSaleDocument,
 } from '../../common/schemas/tm-on-sale.schema';
-import { OnEvent } from '@nestjs/event-emitter';
+import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
+import { PRODUCT_STATUS } from '../../common/enums/mongo.enum';
 
 @Injectable()
 export class CheckPriceService {
@@ -24,7 +24,7 @@ export class CheckPriceService {
     private schedulerRegistry: SchedulerRegistry,
     private readonly logger: Logger,
     private readonly configService: ConfigService,
-
+    private readonly eventEmitter: EventEmitter2,
     @InjectModel(MarketHashName.name)
     private readonly marketHashNameModel: PaginateModel<MarketHashNameDocument>,
 
@@ -45,46 +45,52 @@ export class CheckPriceService {
       let totalItems = 0;
       const getItems = await this.marketHashNameModel
         .find()
+        .select(['status', 'priceInfo', 'priceHistory'])
         .populate(['priceInfo', 'priceHistory']);
       await Promise.all(
-        getItems.map(async ({ priceInfo = null, priceHistory = null }) => {
-          if (
-            priceHistory?.status === PRODUCT_STATUS.NEED_CHECK &&
-            priceInfo?.status === PRODUCT_STATUS.NEED_CHECK &&
-            priceHistory?.price === priceInfo?.price
-          ) {
-            await this.tmOnSaleModel.updateOne(
-              {
-                // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-                // @ts-ignore
-                _id: priceInfo._id,
-              },
-              {
-                status: PRODUCT_STATUS.FOUND,
-              },
-            );
-            await this.tmHistoryModel.updateOne(
-              {
-                // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-                // @ts-ignore
-                _id: priceHistory._id,
-              },
-              {
-                status: PRODUCT_STATUS.FOUND,
-                tmId: priceInfo.tmId,
-                asset: priceInfo.asset,
-                classId: priceInfo.classId,
-                instanceId: priceInfo.instanceId,
-              },
-            );
-            totalItems += 1;
-          }
-        }),
+        getItems.map(
+          async ({ priceInfo = [], priceHistory = [], status, _id }) => {
+            if (
+              status === PRODUCT_STATUS.NEED_CHECK &&
+              priceHistory.length &&
+              priceInfo.length
+            ) {
+              for (const { price, id } of priceHistory) {
+                const getPriceOnSale = await this.tmOnSaleModel.findOne({
+                  price,
+                });
+                if (getPriceOnSale) {
+                  await this.tmHistoryModel.updateOne(
+                    {
+                      id,
+                    },
+                    {
+                      tmId: getPriceOnSale.tmId,
+                      asset: getPriceOnSale.asset,
+                      classId: getPriceOnSale.classId,
+                      instanceId: getPriceOnSale.instanceId,
+                    },
+                  );
+                  await this.marketHashNameModel.updateOne(
+                    {
+                      _id,
+                    },
+                    {
+                      status: PRODUCT_STATUS.FOUND,
+                    },
+                  );
+                  totalItems += 1;
+                }
+              }
+            }
+          },
+        ),
       );
       this.logger.log(
         `The start method has finished. Total items (${totalItems}) was updated.`,
         CheckPriceService.name,
       );
+      this.eventEmitter.emit('tm-on-sale-event');
     } catch (e) {
       this.logger.error(
         'Error in the start method',

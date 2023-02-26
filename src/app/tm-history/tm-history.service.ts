@@ -16,6 +16,7 @@ import {
 } from '../../common/schemas/tm-history.schema';
 import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
 import { CronTime } from 'cron';
+import { timer } from 'rxjs';
 
 @Injectable()
 export class TmHistoryService {
@@ -42,45 +43,43 @@ export class TmHistoryService {
         `The start method has been started`,
         TmHistoryService.name,
       );
-      let currentPage = 1;
-      let prevCounter = 1;
       const { totalPages = 0 } = await this.marketHashNameService.paginate({
         currentPage: 1,
         select: ['name'],
       });
-      await Promise.all(
-        Array.from({ length: totalPages }, (x, y) => y + 1).map(async (_) => {
-          const { pagingCounter, docs = [] } =
-            await this.marketHashNameService.paginate({
-              currentPage,
-              populate: 'priceHistory',
-            });
-          const name =
-            currentPage === 1 ? '1-50' : `${prevCounter}-${pagingCounter}`;
-          const job = await this.tmHistoryQueue.add(
-            'start',
-            {
-              docs,
-              name,
-            },
-            {
-              attempts: 0,
-            },
-          );
-          // Delete  duplicates
-          await this.tmHistoryLogModel.deleteMany({
-            jobId: job.id,
+      for (const currentPage of Array.from(
+        { length: totalPages },
+        (x, y) => y + 1,
+      )) {
+        const { pagingCounter, docs = [] } =
+          await this.marketHashNameService.paginate({
+            currentPage,
+            select: ['name'],
           });
-          await this.tmHistoryLogModel.create({
-            jobId: job.id,
-            status: 'started',
+        const name = `${pagingCounter}-${pagingCounter + 50}`;
+        // await timer(30 * 1000);
+        const job = await this.tmHistoryQueue.add(
+          'start',
+          {
+            docs,
             name,
-          });
-          prevCounter = pagingCounter;
-          currentPage += 1;
-        }),
-      );
-      jobTmHistoryChecker.setTime(new CronTime('*/1 * * * *'));
+          },
+          {
+            attempts: 0,
+            // timeout: 30 * 1000,
+          },
+        );
+        // Delete  duplicates
+        await this.tmHistoryLogModel.deleteMany({
+          jobId: job.id,
+        });
+        await this.tmHistoryLogModel.create({
+          jobId: job.id,
+          status: 'started',
+          name,
+        });
+      }
+      jobTmHistoryChecker.setTime(new CronTime('*/5 * * * *'));
     } catch (e) {
       this.logger.error(
         'Error in the start method',
@@ -90,7 +89,7 @@ export class TmHistoryService {
     }
   }
 
-  @Cron('0 0 * * *', {
+  @Cron('0 0 */365 * *', {
     name: 'tm-history-checker-task',
   })
   async getJobs() {
@@ -100,14 +99,11 @@ export class TmHistoryService {
       );
       const getJobs = await this.tmHistoryLogModel.find({ available: true });
       if (getJobs.length) {
-        for (const { jobId, status = 'active', name } of getJobs) {
+        for (const { jobId, status = 'active' } of getJobs) {
           const job = await this.tmHistoryQueue.getJob(jobId);
           if (job) {
             const getStateJob = await job.getState();
             const progress = await job.progress();
-            this.logger.log(
-              `Job [${jobId}], name: ${name}, progress: ${progress}, status: ${getStateJob}`,
-            );
             const available = !(
               (await job.isStuck()) ||
               (await job.isCompleted()) ||
@@ -130,7 +126,6 @@ export class TmHistoryService {
               await job.remove();
             }
           } else {
-            this.logger.log(`Job [${jobId}] with name ${name} not found`);
             await this.tmHistoryLogModel.updateOne(
               {
                 jobId,
@@ -149,37 +144,6 @@ export class TmHistoryService {
     } catch (e) {
       this.logger.error(
         'Error in the getJobs method',
-        e.stack,
-        TmHistoryService.name,
-      );
-    }
-  }
-
-  @Cron('*/60 * * * *')
-  async checkNotFound() {
-    try {
-      this.logger.log(
-        `The checkNotFound method has been started`,
-        TmHistoryService.name,
-      );
-      const getTotalNeedCheckItems = await this.tmHistoryModel.count({
-        status: PRODUCT_STATUS.NEED_CHECK,
-      });
-      await this.tmHistoryModel.updateMany(
-        {
-          status: PRODUCT_STATUS.NEED_CHECK,
-        },
-        {
-          status: PRODUCT_STATUS.NOT_FOUND,
-        },
-      );
-      this.logger.log(
-        `The checkNotFound method has finished.Total updated items - ${getTotalNeedCheckItems}`,
-        TmHistoryService.name,
-      );
-    } catch (e) {
-      this.logger.error(
-        'Error in the checkNotFound method',
         e.stack,
         TmHistoryService.name,
       );

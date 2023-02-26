@@ -33,6 +33,8 @@ services:
       context: .
     networks:
       - steam-csgo-checker
+    volumes:
+      - ./logs:/usr/src/app/logs
     environment:
       - TZ=Europe/Kiev
     env_file:
