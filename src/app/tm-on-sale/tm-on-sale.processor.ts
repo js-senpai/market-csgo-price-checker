@@ -30,44 +30,60 @@ export class TmOnSaleProcessor {
 
   @Process('start')
   async start(job: Job): Promise<{ ok: string }> {
-    const { docs = [], name = '' } = job.data;
+    const { docs = [], listName = '' } = job.data;
     let totalOnSale = 0;
     let totalNotFound = 0;
     let keyIndex = 0;
-    let currentName = '';
     try {
       this.logger.log(
-        `The on sale list with name "${name}" has started`,
+        `The on sale list with name "${listName}" has started`,
         TmOnSaleProcessor.name,
       );
       for (const { _id, name } of docs) {
-        currentName = name;
-        const {
-          data: { data = {} },
-        }: {
-          data: {
-            data: {
-              [key: string]: {
-                id?: number;
-                extra?: {
-                  asset: number;
+        const { data = {} } = await (async () => {
+          try {
+            const {
+              data: { data = {} },
+            }: {
+              data: {
+                data: {
+                  [key: string]: {
+                    id?: number;
+                    extra?: {
+                      asset: number;
+                    };
+                    class: number;
+                    instance: number;
+                    price: number;
+                  };
                 };
-                class: number;
-                instance: number;
-                price: number;
               };
+            } = await axios.get(
+              `${this.configService.get(
+                'CSGO_MARKET_URL',
+              )}/search-list-items-by-hash-name-all?key=${TM_KEYS[keyIndex]}`,
+              {
+                params: {
+                  'list_hash_name[]': name,
+                },
+              },
+            );
+            return {
+              data,
             };
-          };
-        } = await axios.get(
-          `${this.configService.get(
-            'CSGO_MARKET_URL',
-          )}/search-list-items-by-hash-name-all?key=${TM_KEYS[keyIndex]}`,
-          {
-            params: {
-              'list_hash_name[]': name,
-            },
-          },
-        );
+          } catch (e) {
+            this.logger.error(
+              `Error in start method. The list name ${listName}. The error was in an interaction where the item had the name "${name}". Response status ${
+                e?.response?.status || 500
+              } `,
+              e.stack,
+              TmOnSaleProcessor.name,
+            );
+            return {
+              data: {},
+            };
+          }
+        })();
         const getData = Object.values({ ...data }).flat(1);
         if (!getData.length) {
           await this.marketHashNameModel.updateOne(
@@ -126,7 +142,7 @@ export class TmOnSaleProcessor {
         }
       }
       this.logger.log(
-        `The on sale list with name "${name}" has finished. Total items with status "on_sale" - ${totalOnSale}.Total items with status "not_found" - ${totalNotFound}.`,
+        `The on sale list with name "${listName}" has finished. Total items with status "on_sale" - ${totalOnSale}.Total items with status "not_found" - ${totalNotFound}.`,
         TmOnSaleProcessor.name,
       );
       return {
@@ -134,7 +150,7 @@ export class TmOnSaleProcessor {
       };
     } catch (e) {
       this.logger.error(
-        `Error in start method. The list name ${name}. The error was in an interaction where the item had the name "${currentName}". Response status ${
+        `Error in start method. The list name ${listName}. Response status ${
           e?.response?.status || 500
         } `,
         e.stack,

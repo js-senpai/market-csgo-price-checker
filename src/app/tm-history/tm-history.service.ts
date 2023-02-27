@@ -62,7 +62,7 @@ export class TmHistoryService {
           'start',
           {
             docs,
-            name,
+            listName: name,
           },
           {
             attempts: 0,

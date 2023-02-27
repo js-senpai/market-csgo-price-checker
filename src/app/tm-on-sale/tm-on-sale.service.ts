@@ -15,7 +15,6 @@ import {
 } from '../../common/schemas/tm-on-sale.schema';
 import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
 import { CronTime } from 'cron';
-import { timer } from 'rxjs';
 
 @Injectable()
 export class TmOnSaleService {
@@ -63,7 +62,7 @@ export class TmOnSaleService {
           'start',
           {
             docs,
-            name,
+            listName: name,
           },
           {
             attempts: 0,

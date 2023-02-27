@@ -2,10 +2,6 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Process, Processor } from '@nestjs/bull';
 import { ConfigService } from '@nestjs/config';
 import { InjectModel } from '@nestjs/mongoose';
-import {
-  TmOnSale,
-  TmOnSaleDocument,
-} from '../../common/schemas/tm-on-sale.schema';
 import { Model } from 'mongoose';
 import {
   MarketHashName,
@@ -34,38 +30,54 @@ export class TmHistoryProcessor {
 
   @Process('start')
   async start(job: Job): Promise<{ ok: string }> {
-    const { docs = [], name = '' } = job.data;
+    const { docs = [], listName = '' } = job.data;
     let totalOnSale = 0;
     let totalNotFound = 0;
-    let currentName = '';
     try {
       let keyIndex = 0;
       this.logger.log(
-        `The history list with name "${name}" has started`,
+        `The history list with name "${listName}" has started`,
         TmHistoryProcessor.name,
       );
       for (const { _id, name } of docs) {
-        currentName = name;
-        const {
-          data: { data = null },
-        }: {
-          data: {
-            data: {
-              [key: string]: {
-                history: [number, number][];
+        const { data = {} } = await (async () => {
+          try {
+            const {
+              data: { data = null },
+            }: {
+              data: {
+                data: {
+                  [key: string]: {
+                    history: [number, number][];
+                  };
+                };
               };
+            } = await axios.get(
+              `${this.configService.get(
+                'CSGO_MARKET_URL',
+              )}/get-list-items-info?key=${TM_KEYS[keyIndex]}`,
+              {
+                params: {
+                  'list_hash_name[]': name,
+                },
+              },
+            );
+            return {
+              data,
             };
-          };
-        } = await axios.get(
-          `${this.configService.get(
-            'CSGO_MARKET_URL',
-          )}/get-list-items-info?key=${TM_KEYS[keyIndex]}`,
-          {
-            params: {
-              'list_hash_name[]': name,
-            },
-          },
-        );
+          } catch (e) {
+            this.logger.error(
+              `Error in start method. The history list name ${listName}. The error was in an interaction where the item had the name "${name}". Response status ${
+                e?.response?.status || 500
+              } `,
+              e.stack,
+              TmHistoryProcessor.name,
+            );
+            return {
+              data: {},
+            };
+          }
+        })();
         const getData = Object.values({ ...data }).flat(1);
         if (!getData.length) {
           await this.marketHashNameModel.updateOne(
@@ -118,7 +130,7 @@ export class TmHistoryProcessor {
         }
       }
       this.logger.log(
-        `The history list with name "${name}" has finished. Total items with status "on_sale" - ${totalOnSale}.Total items with status "not_found" - ${totalNotFound}.The error was in an interaction where the item had the name "${currentName}".`,
+        `The history list with name "${listName}" has finished. Total items with status "on_sale" - ${totalOnSale}.Total items with status "not_found" - ${totalNotFound}.`,
         TmHistoryProcessor.name,
       );
       return {
@@ -126,7 +138,7 @@ export class TmHistoryProcessor {
       };
     } catch (e) {
       this.logger.error(
-        `Error in start method. The list name ${name}. Response status ${
+        `Error in start method. The history list name ${listName}. Response status ${
           e?.response?.status || 500
         } `,
         e.stack,
