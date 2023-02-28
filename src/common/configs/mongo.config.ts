@@ -5,4 +5,5 @@ export const getMongoConfig = async (
   configService: ConfigService,
 ): Promise<MongooseModuleOptions> => ({
   uri: configService.get<string>('MONGO_URI'),
+  authSource: 'admin',
 });

@@ -23,7 +23,7 @@ export class MarketHashNameTaskService {
     private readonly marketHashNameModel: PaginateModel<MarketHashNameDocument>,
   ) {}
 
-  @Cron('0 8 */1 * *', {
+  @Cron('0 19 */1 * *', {
     name: 'market-hash-name-task',
   })
   async start() {

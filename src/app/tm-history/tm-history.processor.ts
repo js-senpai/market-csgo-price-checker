@@ -99,6 +99,9 @@ export class TmHistoryProcessor {
               {
                 price,
               },
+              {
+                upsert: true,
+              },
             );
           }
           const getNewItems = await this.tmHistoryModel
