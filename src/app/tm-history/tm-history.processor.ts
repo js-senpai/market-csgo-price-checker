@@ -95,6 +95,7 @@ export class TmHistoryProcessor {
             await this.tmHistoryModel.updateOne(
               {
                 id,
+                parent: _id,
               },
               {
                 price,

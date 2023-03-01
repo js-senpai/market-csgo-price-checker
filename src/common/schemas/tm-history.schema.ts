@@ -1,5 +1,6 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { HydratedDocument } from 'mongoose';
+import { HydratedDocument, Types } from 'mongoose';
+import { MarketHashName } from './market-hash-name.schema';
 
 export type TmHistoryDocument = HydratedDocument<TmHistory>;
 
@@ -15,7 +16,7 @@ export class TmHistory {
   @Prop({ unique: true, required: true, type: Number })
   id: number;
 
-  @Prop({ unique: true, required: true, type: Number })
+  @Prop({ required: true, type: Number })
   tmId: number;
 
   @Prop({ required: false, type: Number })
@@ -26,6 +27,9 @@ export class TmHistory {
 
   @Prop({ required: false, type: Number })
   instanceId: number;
+
+  @Prop({ type: Types.ObjectId, ref: 'MarketHashName', required: true })
+  parent: MarketHashName;
 }
 
 export const TmHistorySchema = SchemaFactory.createForClass(TmHistory);

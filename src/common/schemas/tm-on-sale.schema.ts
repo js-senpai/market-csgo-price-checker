@@ -1,5 +1,6 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { HydratedDocument } from 'mongoose';
+import { HydratedDocument, Types } from 'mongoose';
+import { MarketHashName } from './market-hash-name.schema';
 
 export type TmOnSaleDocument = HydratedDocument<TmOnSale>;
 
@@ -23,6 +24,9 @@ export class TmOnSale {
 
   @Prop({ required: true, type: Number })
   price: number;
+
+  @Prop({ type: Types.ObjectId, ref: 'MarketHashName', required: true })
+  parent: MarketHashName;
 }
 
 export const TmOnSaleSchema = SchemaFactory.createForClass(TmOnSale);

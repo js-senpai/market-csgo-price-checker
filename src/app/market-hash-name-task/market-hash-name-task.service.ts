@@ -10,6 +10,7 @@ import {
 import { PaginateModel, PaginateResult } from 'mongoose';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PRODUCT_STATUS } from '../../common/enums/mongo.enum';
+import { TmValue, TmValueDocument } from '../../common/schemas/tm-value.schema';
 
 @Injectable()
 export class MarketHashNameTaskService {
@@ -18,9 +19,10 @@ export class MarketHashNameTaskService {
     private readonly eventEmitter: EventEmitter2,
     private readonly logger: Logger,
     private readonly configService: ConfigService,
-
     @InjectModel(MarketHashName.name)
     private readonly marketHashNameModel: PaginateModel<MarketHashNameDocument>,
+    @InjectModel(TmValue.name)
+    private readonly tmValueModel: PaginateModel<TmValueDocument>,
   ) {}
 
   @Cron('0 19 */1 * *', {
@@ -58,12 +60,16 @@ export class MarketHashNameTaskService {
             name,
           },
           {
-            value,
-          },
-          {
             upsert: true,
           },
         );
+        const getMarketHashModel = await this.marketHashNameModel.findOne({
+          name,
+        });
+        await this.tmValueModel.create({
+          value,
+          parent: getMarketHashModel._id,
+        });
       }
       this.logger.log(
         `The start method has  finished with status ${status} and received total items ${getItems.length}`,

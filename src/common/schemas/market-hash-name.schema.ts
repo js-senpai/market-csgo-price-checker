@@ -9,14 +9,11 @@ export type MarketHashNameDocument = HydratedDocument<MarketHashName>;
 @Schema({
   collection: 'marketHashNames',
   versionKey: false,
-  timestamps: { createdAt: 'createdAt', updatedAt: 'updatedAt' },
+  timestamps: { createdAt: 'createdAt' },
 })
 export class MarketHashName {
   @Prop({ unique: true, required: true, type: String })
   name: string;
-
-  @Prop({ required: true, type: Number, default: 1 })
-  value: number;
 
   @Prop({ type: [{ type: Types.ObjectId, ref: 'TmHistory' }], default: [] })
   priceHistory: TmHistory[];

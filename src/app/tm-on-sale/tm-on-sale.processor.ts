@@ -100,6 +100,7 @@ export class TmOnSaleProcessor {
             await this.tmOnSaleModel.updateOne(
               {
                 tmId: item.id,
+                parent: _id,
               },
               {
                 tmId: item.id,
