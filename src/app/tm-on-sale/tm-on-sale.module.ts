@@ -15,12 +15,15 @@ import {
   TmOnSaleLogSchema,
 } from '../../common/schemas/tm-on-sale-log.schema';
 import { BullModule } from '@nestjs/bull';
-import { TmOnSaleProcessor } from './tm-on-sale.processor';
 import {
   ItemValueSchema,
   ItemValue,
 } from '../../common/schemas/item-value.schema';
-import { join } from 'path';
+import TmOnSaleProcessor from './tm-on-sale.processor';
+import {
+  TmHistory,
+  TmHistorySchema,
+} from '../../common/schemas/tm-history.schema';
 
 @Module({
   imports: [
@@ -29,22 +32,19 @@ import { join } from 'path';
       { name: TmOnSale.name, schema: TmOnSaleSchema },
       { name: TmOnSaleLog.name, schema: TmOnSaleLogSchema },
       { name: ItemValue.name, schema: ItemValueSchema },
+      { name: TmHistory.name, schema: TmHistorySchema },
     ]),
     BullModule.registerQueue({
       name: 'tm-on-sale-queue',
       processors: [
         {
-          name: 'start-parser',
-          path: join(__dirname, 'tm-on-sale.processor.js'),
+          name: 'start',
+          // path: join(__dirname, 'tm-on-sale.processor.js'),
+          callback: TmOnSaleProcessor,
         },
       ],
     }),
   ],
-  providers: [
-    Logger,
-    TmOnSaleProcessor,
-    MarketHashNameTaskService,
-    TmOnSaleService,
-  ],
+  providers: [Logger, MarketHashNameTaskService, TmOnSaleService],
 })
 export class TmOnSaleModule {}

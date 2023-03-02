@@ -15,12 +15,11 @@ import {
   TmHistoryLogSchema,
 } from '../../common/schemas/tm-history-log.schema';
 import { MarketHashNameTaskService } from '../market-hash-name-task/market-hash-name-task.service';
-import { TmHistoryProcessor } from './tm-history.processor';
 import {
-  ItemValueSchema,
   ItemValue,
+  ItemValueSchema,
 } from '../../common/schemas/item-value.schema';
-import { join } from 'path';
+import TmHistoryProcessor from './tm-history.processor';
 
 @Module({
   imports: [
@@ -34,17 +33,13 @@ import { join } from 'path';
       name: 'tm-history-queue',
       processors: [
         {
-          name: 'start-parser',
-          path: join(__dirname, 'tm-history.processor.js'),
+          name: 'start',
+          // path: join(__dirname, 'tm-history.processor.js'),
+          callback: TmHistoryProcessor,
         },
       ],
     }),
   ],
-  providers: [
-    Logger,
-    TmHistoryProcessor,
-    MarketHashNameTaskService,
-    TmHistoryService,
-  ],
+  providers: [Logger, MarketHashNameTaskService, TmHistoryService],
 })
 export class TmHistoryModule {}

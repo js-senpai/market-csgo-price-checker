@@ -9,7 +9,6 @@ import {
 } from '../../common/schemas/market-hash-name.schema';
 import { PaginateModel, PaginateResult } from 'mongoose';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { PRODUCT_STATUS } from '../../common/enums/mongo.enum';
 import {
   ItemValue,
   ItemValueDocument,
@@ -28,7 +27,7 @@ export class MarketHashNameTaskService {
     private readonly itemValueModel: PaginateModel<ItemValueDocument>,
   ) {}
 
-  @Cron('0 23 */1 * *', {
+  @Cron('0 0 */1 * *', {
     name: 'market-hash-name-task',
   })
   async start() {
@@ -57,26 +56,68 @@ export class MarketHashNameTaskService {
         name,
         value,
       }));
-      for (const { name, value } of getItems) {
-        await this.marketHashNameModel.updateOne(
-          {
+      // for (const { name, value } of getItems) {
+      //   await this.marketHashNameModel.updateOne(
+      //     {
+      //       name,
+      //     },
+      //     {
+      //       name,
+      //     },
+      //     {
+      //       upsert: true,
+      //     },
+      //   );
+      //   const getMarketHashModel = await this.marketHashNameModel.findOne({
+      //     name,
+      //   });
+      //   const newItemValue = await this.itemValueModel.create({
+      //     value,
+      //     parent: getMarketHashModel._id,
+      //   });
+      //   await this.marketHashNameModel.updateOne(
+      //     {
+      //       _id: getMarketHashModel._id,
+      //     },
+      //     {
+      //       $addToSet: {
+      //         priceValues: newItemValue._id,
+      //       },
+      //     },
+      //   );
+      // }
+      await Promise.all(
+        getItems.map(async ({ name, value }) => {
+          await this.marketHashNameModel.updateOne(
+            {
+              name,
+            },
+            {
+              name,
+            },
+            {
+              upsert: true,
+            },
+          );
+          const getMarketHashModel = await this.marketHashNameModel.findOne({
             name,
-          },
-          {
-            name,
-          },
-          {
-            upsert: true,
-          },
-        );
-        const getMarketHashModel = await this.marketHashNameModel.findOne({
-          name,
-        });
-        await this.itemValueModel.create({
-          value,
-          parent: getMarketHashModel._id,
-        });
-      }
+          });
+          const newItemValue = await this.itemValueModel.create({
+            value,
+            parent: getMarketHashModel._id,
+          });
+          await this.marketHashNameModel.updateOne(
+            {
+              _id: getMarketHashModel._id,
+            },
+            {
+              $addToSet: {
+                priceValues: newItemValue._id,
+              },
+            },
+          );
+        }),
+      );
       this.logger.log(
         `The start method has  finished with status ${status} and received total items ${getItems.length}`,
         MarketHashNameTaskService.name,
