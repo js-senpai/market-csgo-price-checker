@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Process, Processor } from '@nestjs/bull';
 import { ConfigService } from '@nestjs/config';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import {
   MarketHashName,
   MarketHashNameDocument,
@@ -79,32 +79,48 @@ export class TmHistoryProcessor {
           }
         })();
         const getData = Object.values({ ...data }).flat(1);
+        const parent = new Types.ObjectId(_id);
         if (!getData.length) {
-          await this.marketHashNameModel.updateOne(
+          await this.tmHistoryModel.updateMany(
             {
-              _id,
+              parent,
             },
             {
-              status: PRODUCT_STATUS.ON_SALE,
+              status: PRODUCT_STATUS.NEED_CHECK,
             },
           );
-          totalNotFound += 1;
+          totalNotFound += getData.length;
         } else {
           const filteredData = getData.flatMap(({ history = [] }) => history);
-          for (const [id, price] of filteredData) {
-            await this.tmHistoryModel.updateOne(
-              {
-                id,
-                parent: _id,
+          await Promise.all(
+            filteredData.map(
+              async ([id, price]) =>
+                await this.tmHistoryModel.updateOne(
+                  {
+                    id,
+                    parent,
+                  },
+                  {
+                    price,
+                    status: PRODUCT_STATUS.ON_SALE,
+                  },
+                  {
+                    upsert: true,
+                  },
+                ),
+            ),
+          );
+          await this.tmHistoryModel.updateMany(
+            {
+              id: {
+                $nin: filteredData.map(([id]) => id),
               },
-              {
-                price,
-              },
-              {
-                upsert: true,
-              },
-            );
-          }
+              parent,
+            },
+            {
+              status: PRODUCT_STATUS.NEED_CHECK,
+            },
+          );
           const getNewItems = await this.tmHistoryModel
             .find({
               id: {
@@ -117,7 +133,6 @@ export class TmHistoryProcessor {
               _id,
             },
             {
-              status: PRODUCT_STATUS.ON_SALE,
               $addToSet: {
                 priceHistory: {
                   $each: getNewItems.map(({ _id }) => _id),
@@ -125,7 +140,14 @@ export class TmHistoryProcessor {
               },
             },
           );
-          totalOnSale += 1;
+          totalNotFound += await this.tmHistoryModel.count({
+            status: PRODUCT_STATUS.NEED_CHECK,
+            parent,
+          });
+          totalOnSale += await this.tmHistoryModel.count({
+            status: PRODUCT_STATUS.ON_SALE,
+            parent,
+          });
         }
         if (keyIndex + 1 === TM_KEYS.length) {
           keyIndex = 0;

@@ -6,7 +6,7 @@ import {
   TmOnSale,
   TmOnSaleDocument,
 } from '../../common/schemas/tm-on-sale.schema';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import {
   MarketHashName,
   MarketHashNameDocument,
@@ -85,35 +85,51 @@ export class TmOnSaleProcessor {
           }
         })();
         const getData = Object.values({ ...data }).flat(1);
+        const parent = new Types.ObjectId(_id);
         if (!getData.length) {
-          await this.marketHashNameModel.updateOne(
+          await this.tmOnSaleModel.updateMany(
             {
-              _id,
+              parent,
             },
             {
-              status: PRODUCT_STATUS.ON_SALE,
+              status: PRODUCT_STATUS.NEED_CHECK,
             },
           );
-          totalNotFound += 1;
+          totalNotFound += getData.length;
         } else {
-          for (const item of getData) {
-            await this.tmOnSaleModel.updateOne(
-              {
-                tmId: item.id,
-                parent: _id,
+          await Promise.all([
+            getData.map(
+              async (item) =>
+                await this.tmOnSaleModel.updateOne(
+                  {
+                    tmId: item.id,
+                    parent,
+                  },
+                  {
+                    tmId: item.id,
+                    asset: item.extra?.asset || 0,
+                    classId: item.class,
+                    instanceId: item.instance,
+                    price: +item.price / 100,
+                    status: PRODUCT_STATUS.ON_SALE,
+                  },
+                  {
+                    upsert: true,
+                  },
+                ),
+            ),
+          ]);
+          await this.tmOnSaleModel.updateMany(
+            {
+              tmId: {
+                $nin: getData.map(({ id }) => id),
               },
-              {
-                tmId: item.id,
-                asset: item.extra?.asset || 0,
-                classId: item.class,
-                instanceId: item.instance,
-                price: +item.price / 100,
-              },
-              {
-                upsert: true,
-              },
-            );
-          }
+              parent,
+            },
+            {
+              status: PRODUCT_STATUS.NEED_CHECK,
+            },
+          );
           const getNewItems = await this.tmOnSaleModel
             .find({
               tmId: {
@@ -126,7 +142,6 @@ export class TmOnSaleProcessor {
               _id,
             },
             {
-              status: PRODUCT_STATUS.ON_SALE,
               $addToSet: {
                 priceInfo: {
                   $each: getNewItems.map(({ _id }) => _id),
@@ -134,7 +149,14 @@ export class TmOnSaleProcessor {
               },
             },
           );
-          totalOnSale += 1;
+          totalNotFound += await this.tmOnSaleModel.count({
+            status: PRODUCT_STATUS.NEED_CHECK,
+            parent,
+          });
+          totalOnSale += await this.tmOnSaleModel.count({
+            status: PRODUCT_STATUS.ON_SALE,
+            parent,
+          });
         }
         if (keyIndex + 1 === TM_KEYS.length) {
           keyIndex = 0;

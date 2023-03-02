@@ -15,6 +15,7 @@ import {
 } from '../../common/schemas/tm-on-sale.schema';
 import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
 import { CronTime } from 'cron';
+import { PRODUCT_STATUS } from '../../common/enums/mongo.enum';
 
 @Injectable()
 export class TmOnSaleService {
@@ -144,6 +145,37 @@ export class TmOnSaleService {
     } catch (e) {
       this.logger.error(
         'Error in getJobs method',
+        e.stack,
+        TmOnSaleService.name,
+      );
+    }
+  }
+
+  @Cron('*/60 * * * *')
+  async checkNotFound() {
+    try {
+      this.logger.log(
+        `The checkNotFound method has been started`,
+        TmOnSaleService.name,
+      );
+      const getTotalNeedCheckItems = await this.tmOnSaleModel.count({
+        status: PRODUCT_STATUS.NEED_CHECK,
+      });
+      await this.tmOnSaleModel.updateMany(
+        {
+          status: PRODUCT_STATUS.NEED_CHECK,
+        },
+        {
+          status: PRODUCT_STATUS.NOT_FOUND,
+        },
+      );
+      this.logger.log(
+        `The checkNotFound method has finished.Total updated items - ${getTotalNeedCheckItems}`,
+        TmOnSaleService.name,
+      );
+    } catch (e) {
+      this.logger.error(
+        'Error in the checkNotFound method',
         e.stack,
         TmOnSaleService.name,
       );

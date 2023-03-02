@@ -45,46 +45,55 @@ export class CheckPriceService {
       let totalItems = 0;
       const getItems = await this.marketHashNameModel
         .find()
-        .select(['status', 'priceInfo', 'priceHistory'])
-        .populate(['priceInfo', 'priceHistory']);
+        .select(['status', 'priceInfo', 'priceHistory']);
       await Promise.all(
-        getItems.map(
-          async ({ priceInfo = [], priceHistory = [], status, _id }) => {
-            if (
-              status === PRODUCT_STATUS.NEED_CHECK &&
-              priceHistory.length &&
-              priceInfo.length
-            ) {
-              for (const { price, id } of priceHistory) {
+        getItems.map(async ({ priceInfo = [], priceHistory = [], _id }) => {
+          if (priceHistory.length && priceInfo.length) {
+            const getPriceHistory = await this.tmHistoryModel.find({
+              tmId: {
+                $in: priceHistory.map(({ tmId }) => tmId),
+              },
+              status: PRODUCT_STATUS.NEED_CHECK,
+              parent: _id,
+            });
+            await Promise.all(
+              getPriceHistory.map(async ({ price, id, parent }) => {
                 const getPriceOnSale = await this.tmOnSaleModel.findOne({
                   price,
+                  status: PRODUCT_STATUS.NEED_CHECK,
+                  parent,
                 });
                 if (getPriceOnSale) {
                   await this.tmHistoryModel.updateOne(
                     {
                       id,
+                      parent,
                     },
                     {
                       tmId: getPriceOnSale.tmId,
                       asset: getPriceOnSale.asset,
                       classId: getPriceOnSale.classId,
                       instanceId: getPriceOnSale.instanceId,
+                      status: PRODUCT_STATUS.FOUND,
                     },
                   );
-                  await this.marketHashNameModel.updateOne(
+                  await this.tmOnSaleModel.updateOne(
                     {
-                      _id,
+                      _id: getPriceOnSale._id,
                     },
                     {
                       status: PRODUCT_STATUS.FOUND,
                     },
                   );
-                  totalItems += 1;
                 }
-              }
-            }
-          },
-        ),
+              }),
+            );
+            totalItems += await this.tmHistoryModel.count({
+              parent,
+              status: PRODUCT_STATUS.FOUND,
+            });
+          }
+        }),
       );
       this.logger.log(
         `The start method has finished. Total items (${totalItems}) was updated.`,

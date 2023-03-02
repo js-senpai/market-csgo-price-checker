@@ -10,7 +10,10 @@ import {
 import { PaginateModel, PaginateResult } from 'mongoose';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PRODUCT_STATUS } from '../../common/enums/mongo.enum';
-import { TmValue, TmValueDocument } from '../../common/schemas/tm-value.schema';
+import {
+  ItemValue,
+  ItemValueDocument,
+} from '../../common/schemas/item-value.schema';
 
 @Injectable()
 export class MarketHashNameTaskService {
@@ -21,11 +24,11 @@ export class MarketHashNameTaskService {
     private readonly configService: ConfigService,
     @InjectModel(MarketHashName.name)
     private readonly marketHashNameModel: PaginateModel<MarketHashNameDocument>,
-    @InjectModel(TmValue.name)
-    private readonly tmValueModel: PaginateModel<TmValueDocument>,
+    @InjectModel(ItemValue.name)
+    private readonly itemValueModel: PaginateModel<ItemValueDocument>,
   ) {}
 
-  @Cron('0 19 */1 * *', {
+  @Cron('0 23 */1 * *', {
     name: 'market-hash-name-task',
   })
   async start() {
@@ -60,13 +63,16 @@ export class MarketHashNameTaskService {
             name,
           },
           {
+            name,
+          },
+          {
             upsert: true,
           },
         );
         const getMarketHashModel = await this.marketHashNameModel.findOne({
           name,
         });
-        await this.tmValueModel.create({
+        await this.itemValueModel.create({
           value,
           parent: getMarketHashModel._id,
         });
@@ -96,36 +102,5 @@ export class MarketHashNameTaskService {
       {},
       { page: currentPage, limit: 50, ...options },
     );
-  }
-
-  @Cron('*/60 * * * *')
-  async checkNotFound() {
-    try {
-      this.logger.log(
-        `The checkNotFound method has been started`,
-        MarketHashNameTaskService.name,
-      );
-      const getTotalNeedCheckItems = await this.marketHashNameModel.count({
-        status: PRODUCT_STATUS.NEED_CHECK,
-      });
-      await this.marketHashNameModel.updateMany(
-        {
-          status: PRODUCT_STATUS.NEED_CHECK,
-        },
-        {
-          status: PRODUCT_STATUS.NOT_FOUND,
-        },
-      );
-      this.logger.log(
-        `The checkNotFound method has finished.Total updated items - ${getTotalNeedCheckItems}`,
-        MarketHashNameTaskService.name,
-      );
-    } catch (e) {
-      this.logger.error(
-        'Error in the checkNotFound method',
-        e.stack,
-        MarketHashNameTaskService.name,
-      );
-    }
   }
 }

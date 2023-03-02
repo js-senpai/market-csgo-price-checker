@@ -9,14 +9,13 @@ import {
   TmHistoryLog,
   TmHistoryLogDocument,
 } from '../../common/schemas/tm-history-log.schema';
-import { PRODUCT_STATUS } from '../../common/enums/mongo.enum';
 import {
   TmHistory,
   TmHistoryDocument,
 } from '../../common/schemas/tm-history.schema';
 import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
 import { CronTime } from 'cron';
-import { timer } from 'rxjs';
+import { PRODUCT_STATUS } from '../../common/enums/mongo.enum';
 
 @Injectable()
 export class TmHistoryService {
@@ -144,6 +143,37 @@ export class TmHistoryService {
     } catch (e) {
       this.logger.error(
         'Error in the getJobs method',
+        e.stack,
+        TmHistoryService.name,
+      );
+    }
+  }
+
+  @Cron('*/60 * * * *')
+  async checkNotFound() {
+    try {
+      this.logger.log(
+        `The checkNotFound method has been started`,
+        TmHistoryService.name,
+      );
+      const getTotalNeedCheckItems = await this.tmHistoryModel.count({
+        status: PRODUCT_STATUS.NEED_CHECK,
+      });
+      await this.tmHistoryModel.updateMany(
+        {
+          status: PRODUCT_STATUS.NEED_CHECK,
+        },
+        {
+          status: PRODUCT_STATUS.NOT_FOUND,
+        },
+      );
+      this.logger.log(
+        `The checkNotFound method has finished.Total updated items - ${getTotalNeedCheckItems}`,
+        TmHistoryService.name,
+      );
+    } catch (e) {
+      this.logger.error(
+        'Error in the checkNotFound method',
         e.stack,
         TmHistoryService.name,
       );
