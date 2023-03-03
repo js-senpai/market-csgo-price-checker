@@ -17,7 +17,6 @@ import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
 import { CronTime } from 'cron';
 import { PRODUCT_STATUS } from '../../common/enums/mongo.enum';
 import { TM_KEYS } from '../../common/constants/general.constant';
-import { ConfigService } from '@nestjs/config';
 import {
   TmHistory,
   TmHistoryDocument,

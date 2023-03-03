@@ -24,8 +24,6 @@ import {
   TmHistory,
   TmHistorySchema,
 } from '../../common/schemas/tm-history.schema';
-import TmOnSaleProcessor from './tm-on-sale.processor';
-import TmOnSaleQueueService from './tm-on-sale.queue-service';
 
 @Module({
   imports: [
@@ -48,7 +46,6 @@ import TmOnSaleQueueService from './tm-on-sale.queue-service';
   ],
   providers: [
     Logger,
-    TmOnSaleQueueService,
     // TmOnSaleProcessor,
     MarketHashNameTaskService,
     TmOnSaleService,

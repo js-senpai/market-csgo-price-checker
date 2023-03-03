@@ -22,10 +22,6 @@ export default class TmHistoryQueueService {
     private readonly configService: ConfigService,
     @InjectModel(MarketHashName.name)
     private readonly marketHashNameModel: Model<MarketHashNameDocument>,
-
-    @InjectQueue('tm-history-queue')
-    private readonly tmHistoryQueue: Queue,
-
     @InjectModel(TmHistory.name)
     private readonly tmHistoryModel: Model<TmHistoryDocument>,
   ) {}
@@ -60,7 +56,9 @@ export default class TmHistoryQueueService {
             name,
           });
           if (parent) {
-            const filteredData = items.flatMap(({ history = [] }) => history);
+            const filteredData = Object.entries(items).flatMap(
+              ([name, value]) => (name === 'history' ? value : []),
+            );
             await Promise.all(
               filteredData.map(async ([id, price]) => {
                 await this.tmHistoryModel.updateOne(
@@ -98,7 +96,7 @@ export default class TmHistoryQueueService {
               .select('_id');
             await this.marketHashNameModel.updateOne(
               {
-                _id: parent._id,
+                name: parent.name,
               },
               {
                 $addToSet: {

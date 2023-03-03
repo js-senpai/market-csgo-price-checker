@@ -15,20 +15,18 @@ import {
   TmHistoryLogSchema,
 } from '../../common/schemas/tm-history-log.schema';
 import { MarketHashNameTaskService } from '../market-hash-name-task/market-hash-name-task.service';
+import { join } from 'path';
 import {
   ItemValue,
   ItemValueSchema,
 } from '../../common/schemas/item-value.schema';
-import { join } from 'path';
-import TmHistoryProcessor from './tm-history.processor';
-import TmHistoryQueueService from './tm-history.queue-service';
 @Module({
   imports: [
     MongooseModule.forFeature([
+      { name: ItemValue.name, schema: ItemValueSchema },
       { name: MarketHashName.name, schema: MarketHashNameSchema },
       { name: TmHistory.name, schema: TmHistorySchema },
       { name: TmHistoryLog.name, schema: TmHistoryLogSchema },
-      { name: ItemValue.name, schema: ItemValueSchema },
     ]),
     BullModule.registerQueue({
       name: 'tm-history-queue',
@@ -42,7 +40,6 @@ import TmHistoryQueueService from './tm-history.queue-service';
   ],
   providers: [
     Logger,
-    TmHistoryQueueService,
     // TmHistoryProcessor,
     MarketHashNameTaskService,
     TmHistoryService,

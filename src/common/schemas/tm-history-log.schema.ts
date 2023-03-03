@@ -9,7 +9,7 @@ export type TmHistoryLogDocument = HydratedDocument<TmHistoryLog>;
   timestamps: { createdAt: 'createdAt', updatedAt: 'updatedAt' },
 })
 export class TmHistoryLog {
-  @Prop({ unique: true, required: true, type: String })
+  @Prop({ unique: true, required: true, type: String, index: true })
   jobId: string;
 
   @Prop({ required: true, type: String, default: 1 })
@@ -24,7 +24,7 @@ export class TmHistoryLog {
   @Prop({ required: false, type: String })
   message: string;
 
-  @Prop({ type: Boolean, default: true })
+  @Prop({ type: Boolean, default: true, index: true })
   available: boolean;
 
   @Prop({ required: false, type: Number, default: 0 })

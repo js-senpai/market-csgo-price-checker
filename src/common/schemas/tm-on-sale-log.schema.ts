@@ -9,7 +9,7 @@ export type TmOnSaleLogDocument = HydratedDocument<TmOnSaleLog>;
   timestamps: { createdAt: 'createdAt', updatedAt: 'updatedAt' },
 })
 export class TmOnSaleLog {
-  @Prop({ unique: true, required: true, type: String })
+  @Prop({ unique: true, required: true, type: String, index: true })
   jobId: string;
 
   @Prop({ required: true, type: String })
@@ -21,7 +21,7 @@ export class TmOnSaleLog {
   @Prop({ required: false, type: String })
   message: string;
 
-  @Prop({ type: Boolean, default: true })
+  @Prop({ type: Boolean, default: true, index: true })
   available: boolean;
 
   @Prop({ required: false, type: Number, default: 0 })

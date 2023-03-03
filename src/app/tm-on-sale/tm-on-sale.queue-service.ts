@@ -102,7 +102,7 @@ export default class TmOnSaleQueueService {
               .select('_id');
             await this.marketHashNameModel.updateOne(
               {
-                _id: parent._id,
+                name: parent.name,
               },
               {
                 $addToSet: {

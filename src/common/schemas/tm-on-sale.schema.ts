@@ -35,6 +35,7 @@ export class TmOnSale {
   parent: MarketHashName;
 
   @Prop({
+    index: true,
     required: true,
     type: String,
     validate: {

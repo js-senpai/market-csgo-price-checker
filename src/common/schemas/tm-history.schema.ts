@@ -38,6 +38,7 @@ export class TmHistory {
   parent: MarketHashName;
 
   @Prop({
+    index: true,
     required: true,
     type: String,
     validate: {

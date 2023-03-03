@@ -27,7 +27,7 @@ export class MarketHashNameTaskService {
     private readonly itemValueModel: PaginateModel<ItemValueDocument>,
   ) {}
 
-  @Cron('0 16 */1 * *', {
+  @Cron('45 19 */1 * *', {
     name: 'market-hash-name-task',
   })
   async start() {
@@ -88,27 +88,27 @@ export class MarketHashNameTaskService {
       // }
       await Promise.all(
         getItems.map(async ({ name, value }) => {
-          await this.marketHashNameModel.updateOne(
-            {
-              name,
-            },
-            {
-              name,
-            },
-            {
-              upsert: true,
-            },
-          );
-          const getMarketHashModel = await this.marketHashNameModel.findOne({
-            name,
-          });
+          const getMarketHashModel = await this.marketHashNameModel
+            .findOneAndUpdate(
+              {
+                name,
+              },
+              {
+                name,
+              },
+              {
+                upsert: true,
+                rawResult: true,
+              },
+            )
+            .select(['_id', 'name']);
           const newItemValue = await this.itemValueModel.create({
             value,
-            parent: getMarketHashModel._id,
+            parent: getMarketHashModel.value._id,
           });
           await this.marketHashNameModel.updateOne(
             {
-              _id: getMarketHashModel._id,
+              name: getMarketHashModel.value.name,
             },
             {
               $addToSet: {
