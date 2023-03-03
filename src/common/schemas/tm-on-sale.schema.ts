@@ -11,7 +11,7 @@ export type TmOnSaleDocument = HydratedDocument<TmOnSale>;
   timestamps: { createdAt: 'createdAt', updatedAt: 'updatedAt' },
 })
 export class TmOnSale {
-  @Prop({ unique: true, required: true, type: Number, index: true })
+  @Prop({ required: true, type: Number, index: true })
   tmId: number;
 
   @Prop({ required: true, type: Number })

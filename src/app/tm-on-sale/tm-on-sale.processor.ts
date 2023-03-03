@@ -1,9 +1,15 @@
-import { TmOnSaleService } from './tm-on-sale.service';
-import { ApplicationContext } from '../../app.context';
+import { Injectable } from '@nestjs/common';
+import { Process, Processor } from '@nestjs/bull';
+import { Job } from 'bull';
+import TmOnSaleQueueService from './tm-on-sale.queue-service';
 
-const TmOnSaleProcessor = async (job): Promise<{ ok: string }> => {
-  const context = await ApplicationContext();
-  const service = context.get(TmOnSaleService);
-  return await service.startParser(job);
-};
-export default TmOnSaleProcessor;
+@Injectable()
+@Processor('tm-on-sale-queue')
+export default class TmOnSaleProcessor {
+  constructor(private readonly tmOnSaleQueueService: TmOnSaleQueueService) {}
+
+  @Process('start')
+  async start(job: Job): Promise<{ ok: string }> {
+    return await this.tmOnSaleQueueService.start(job);
+  }
+}

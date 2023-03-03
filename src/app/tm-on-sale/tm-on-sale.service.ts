@@ -8,7 +8,7 @@ import {
 } from '../../common/schemas/tm-on-sale-log.schema';
 import { MarketHashNameTaskService } from '../market-hash-name-task/market-hash-name-task.service';
 import { InjectQueue } from '@nestjs/bull';
-import { Job, Queue } from 'bull';
+import { Queue } from 'bull';
 import {
   TmOnSale,
   TmOnSaleDocument,
@@ -17,7 +17,6 @@ import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
 import { CronTime } from 'cron';
 import { PRODUCT_STATUS } from '../../common/enums/mongo.enum';
 import { TM_KEYS } from '../../common/constants/general.constant';
-import axios from 'axios';
 import { ConfigService } from '@nestjs/config';
 import {
   TmHistory,
@@ -41,7 +40,6 @@ export class TmOnSaleService {
     private readonly tmOnSaleQueue: Queue,
     @InjectModel(TmOnSale.name)
     private readonly tmOnSaleModel: Model<TmOnSaleDocument>,
-    private readonly configService: ConfigService,
     @InjectModel(TmHistory.name)
     private readonly tmHistoryModel: Model<TmHistoryDocument>,
     @InjectModel(MarketHashName.name)
@@ -82,6 +80,7 @@ export class TmOnSaleService {
             token: TM_KEYS[keyIndex],
           },
           {
+            priority: currentPage,
             attempts: 0,
             // timeout: 30 * 1000,
           },
@@ -101,7 +100,7 @@ export class TmOnSaleService {
           keyIndex += 1;
         }
       }
-      jobTmOnSaleChecker.setTime(new CronTime('*/5 * * * *'));
+      jobTmOnSaleChecker.setTime(new CronTime('*/1 * * * *'));
     } catch (e) {
       this.logger.error(
         'Error in the start method',
@@ -160,8 +159,8 @@ export class TmOnSaleService {
           }
         }
       } else {
-        jobTmOnSaleChecker.stop();
         this.eventEmitter.emit('tm-history-event');
+        jobTmOnSaleChecker.stop();
       }
     } catch (e) {
       this.logger.error(
@@ -200,127 +199,6 @@ export class TmOnSaleService {
         e.stack,
         TmOnSaleService.name,
       );
-    }
-  }
-
-  async startParser(job: Job): Promise<{ ok: string }> {
-    const { docs = [], listName = '', token } = job.data;
-    try {
-      this.logger.log(
-        `The on sale list with name "${listName}" has started`,
-        TmOnSaleService.name,
-      );
-      const {
-        data: { data = {} },
-      }: {
-        data: {
-          data: {
-            [key: string]: {
-              id?: number;
-              extra?: {
-                asset: number;
-              };
-              class: number;
-              instance: number;
-              price: number;
-            }[];
-          };
-        };
-      } = await axios.get(
-        `${this.configService.get(
-          'CSGO_MARKET_URL',
-        )}/search-list-items-by-hash-name-all?key=${token}&${docs
-          .map(({ name }) => `list_hash_name[]=${name}`)
-          .join('&')}`,
-      );
-      const getData = Object.entries({ ...data });
-      await Promise.all(
-        getData.map(async ([name, items]) => {
-          const parent = await this.marketHashNameModel.findOne({
-            name,
-          });
-          if (!parent) {
-            this.logger.error(
-              `Error in start method. The sale list name ${listName}. The error was in an interaction where the item had the name "${name}".`,
-            );
-          } else {
-            await Promise.all([
-              items.map(
-                async (item) =>
-                  await this.tmOnSaleModel.updateOne(
-                    {
-                      tmId: item.id,
-                      parent,
-                    },
-                    {
-                      tmId: item.id,
-                      asset: item.extra?.asset || 0,
-                      classId: item.class,
-                      instanceId: item.instance,
-                      price: +item.price / 100,
-                      status: PRODUCT_STATUS.ON_SALE,
-                    },
-                    {
-                      upsert: true,
-                    },
-                  ),
-              ),
-            ]);
-            await this.tmOnSaleModel.updateMany(
-              {
-                tmId: {
-                  $nin: items.map(({ id }) => id),
-                },
-                parent,
-              },
-              {
-                status: PRODUCT_STATUS.NEED_CHECK,
-              },
-            );
-            const getNewItems = await this.tmOnSaleModel
-              .find({
-                tmId: {
-                  $in: items.map(({ id }) => id),
-                },
-              })
-              .select('_id');
-            await this.marketHashNameModel.updateOne(
-              {
-                _id: parent._id,
-              },
-              {
-                $addToSet: {
-                  priceInfo: {
-                    $each: getNewItems.map(({ _id }) => _id),
-                  },
-                },
-              },
-            );
-          }
-        }),
-      );
-      const totalNotFound = await this.tmOnSaleModel.count({
-        status: PRODUCT_STATUS.NEED_CHECK,
-      });
-      const totalOnSale = await this.tmOnSaleModel.count({
-        status: PRODUCT_STATUS.ON_SALE,
-      });
-      this.logger.log(
-        `The on sale list with name "${listName}" has finished. Total items with status "on_sale" - ${totalOnSale}.Total items with status "not_found" - ${totalNotFound}.`,
-        TmOnSaleService.name,
-      );
-      return {
-        ok: 'The task has successfully finished',
-      };
-    } catch (e) {
-      this.logger.error(
-        `Error in start method. The list name ${listName}. Response status ${
-          e?.response?.status || 500
-        } `,
-        e.stack,
-        TmOnSaleService.name,
-      );
-      throw e;
     }
   }
 }

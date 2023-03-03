@@ -1,39 +1,40 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { Process, Processor } from '@nestjs/bull';
+import { Job, Queue } from 'bull';
+import axios from 'axios';
+import { PRODUCT_STATUS } from '../../common/enums/mongo.enum';
 import { ConfigService } from '@nestjs/config';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model, Types } from 'mongoose';
 import {
   MarketHashName,
   MarketHashNameDocument,
 } from '../../common/schemas/market-hash-name.schema';
+import { Model } from 'mongoose';
+import { InjectQueue } from '@nestjs/bull';
 import {
   TmHistory,
   TmHistoryDocument,
 } from '../../common/schemas/tm-history.schema';
-import { Job } from 'bull';
-import axios from 'axios';
-import { PRODUCT_STATUS } from '../../common/enums/mongo.enum';
+import { Injectable, Logger } from '@nestjs/common';
 
 @Injectable()
-@Processor('tm-history-queue')
-export class TmHistoryProcessorOld {
+export default class TmHistoryQueueService {
   constructor(
     private readonly logger: Logger,
     private readonly configService: ConfigService,
-    @InjectModel(TmHistory.name)
-    private readonly tmHistoryModel: Model<TmHistoryDocument>,
     @InjectModel(MarketHashName.name)
     private readonly marketHashNameModel: Model<MarketHashNameDocument>,
-  ) {}
 
-  @Process('start')
+    @InjectQueue('tm-history-queue')
+    private readonly tmHistoryQueue: Queue,
+
+    @InjectModel(TmHistory.name)
+    private readonly tmHistoryModel: Model<TmHistoryDocument>,
+  ) {}
   async start(job: Job): Promise<{ ok: string }> {
     const { docs = [], listName = '', token } = job.data;
     try {
       this.logger.log(
         `The history list with name "${listName}" has started`,
-        TmHistoryProcessorOld.name,
+        TmHistoryQueueService.name,
       );
       const {
         data: { data = {} },
@@ -58,29 +59,24 @@ export class TmHistoryProcessorOld {
           const parent = await this.marketHashNameModel.findOne({
             name,
           });
-          if (!parent) {
-            this.logger.error(
-              `Error in start method. The history list name ${listName}. The error was in an interaction where the item had the name "${name}".`,
-            );
-          } else {
+          if (parent) {
             const filteredData = items.flatMap(({ history = [] }) => history);
             await Promise.all(
-              filteredData.map(
-                async ([id, price]) =>
-                  await this.tmHistoryModel.updateOne(
-                    {
-                      id,
-                      parent,
-                    },
-                    {
-                      price,
-                      status: PRODUCT_STATUS.ON_SALE,
-                    },
-                    {
-                      upsert: true,
-                    },
-                  ),
-              ),
+              filteredData.map(async ([id, price]) => {
+                await this.tmHistoryModel.updateOne(
+                  {
+                    id,
+                    parent,
+                  },
+                  {
+                    price,
+                    status: PRODUCT_STATUS.ON_SALE,
+                  },
+                  {
+                    upsert: true,
+                  },
+                );
+              }),
             );
             await this.tmHistoryModel.updateMany(
               {
@@ -123,7 +119,7 @@ export class TmHistoryProcessorOld {
       });
       this.logger.log(
         `The history list with name "${listName}" has finished. Total items with status "on_sale" - ${totalOnSale}.Total items with status "not_found" - ${totalNotFound}.`,
-        TmHistoryProcessorOld.name,
+        TmHistoryQueueService.name,
       );
       return {
         ok: 'The task has successfully finished',
@@ -134,7 +130,7 @@ export class TmHistoryProcessorOld {
           e?.response?.status || 500
         } `,
         e.stack,
-        TmHistoryProcessorOld.name,
+        TmHistoryQueueService.name,
       );
       throw e;
     }

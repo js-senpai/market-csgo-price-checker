@@ -1,23 +1,21 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { Process, Processor } from '@nestjs/bull';
-import { ConfigService } from '@nestjs/config';
+import { Job } from 'bull';
+import axios from 'axios';
+import { PRODUCT_STATUS } from '../../common/enums/mongo.enum';
 import { InjectModel } from '@nestjs/mongoose';
 import {
   TmOnSale,
   TmOnSaleDocument,
 } from '../../common/schemas/tm-on-sale.schema';
 import { Model } from 'mongoose';
+import { ConfigService } from '@nestjs/config';
 import {
   MarketHashName,
   MarketHashNameDocument,
 } from '../../common/schemas/market-hash-name.schema';
-import { Job } from 'bull';
-import axios from 'axios';
-import { PRODUCT_STATUS } from '../../common/enums/mongo.enum';
 
 @Injectable()
-@Processor('tm-on-sale-queue')
-export class TmOnSaleProcessorOld {
+export default class TmOnSaleQueueService {
   constructor(
     private readonly logger: Logger,
     private readonly configService: ConfigService,
@@ -26,14 +24,12 @@ export class TmOnSaleProcessorOld {
     @InjectModel(MarketHashName.name)
     private readonly marketHashNameModel: Model<MarketHashNameDocument>,
   ) {}
-
-  @Process('start')
   async start(job: Job): Promise<{ ok: string }> {
     const { docs = [], listName = '', token } = job.data;
     try {
       this.logger.log(
         `The on sale list with name "${listName}" has started`,
-        TmOnSaleProcessorOld.name,
+        TmOnSaleQueueService.name,
       );
       const {
         data: { data = {} },
@@ -64,32 +60,27 @@ export class TmOnSaleProcessorOld {
           const parent = await this.marketHashNameModel.findOne({
             name,
           });
-          if (!parent) {
-            this.logger.error(
-              `Error in start method. The sale list name ${listName}. The error was in an interaction where the item had the name "${name}".`,
-            );
-          } else {
+          if (parent) {
             await Promise.all([
-              items.map(
-                async (item) =>
-                  await this.tmOnSaleModel.updateOne(
-                    {
-                      tmId: item.id,
-                      parent,
-                    },
-                    {
-                      tmId: item.id,
-                      asset: item.extra?.asset || 0,
-                      classId: item.class,
-                      instanceId: item.instance,
-                      price: +item.price / 100,
-                      status: PRODUCT_STATUS.ON_SALE,
-                    },
-                    {
-                      upsert: true,
-                    },
-                  ),
-              ),
+              items.map(async (item) => {
+                await this.tmOnSaleModel.updateOne(
+                  {
+                    tmId: item.id,
+                    parent,
+                  },
+                  {
+                    tmId: item.id,
+                    asset: item.extra?.asset || 0,
+                    classId: item.class,
+                    instanceId: item.instance,
+                    price: +item.price / 100,
+                    status: PRODUCT_STATUS.ON_SALE,
+                  },
+                  {
+                    upsert: true,
+                  },
+                );
+              }),
             ]);
             await this.tmOnSaleModel.updateMany(
               {
@@ -124,15 +115,15 @@ export class TmOnSaleProcessorOld {
           }
         }),
       );
-      const totalNotFound = await this.tmOnSaleModel.count({
-        status: PRODUCT_STATUS.NEED_CHECK,
-      });
       const totalOnSale = await this.tmOnSaleModel.count({
         status: PRODUCT_STATUS.ON_SALE,
       });
+      const totalNotFound = await this.tmOnSaleModel.count({
+        status: PRODUCT_STATUS.NEED_CHECK,
+      });
       this.logger.log(
         `The on sale list with name "${listName}" has finished. Total items with status "on_sale" - ${totalOnSale}.Total items with status "not_found" - ${totalNotFound}.`,
-        TmOnSaleProcessorOld.name,
+        TmOnSaleQueueService.name,
       );
       return {
         ok: 'The task has successfully finished',
@@ -143,7 +134,7 @@ export class TmOnSaleProcessorOld {
           e?.response?.status || 500
         } `,
         e.stack,
-        TmOnSaleProcessorOld.name,
+        TmOnSaleQueueService.name,
       );
       throw e;
     }

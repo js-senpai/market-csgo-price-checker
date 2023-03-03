@@ -19,8 +19,9 @@ import {
   ItemValue,
   ItemValueSchema,
 } from '../../common/schemas/item-value.schema';
+import { join } from 'path';
 import TmHistoryProcessor from './tm-history.processor';
-
+import TmHistoryQueueService from './tm-history.queue-service';
 @Module({
   imports: [
     MongooseModule.forFeature([
@@ -34,12 +35,17 @@ import TmHistoryProcessor from './tm-history.processor';
       processors: [
         {
           name: 'start',
-          // path: join(__dirname, 'tm-history.processor.js'),
-          callback: TmHistoryProcessor,
+          path: join(__dirname, 'tm-history.processor-functional.js'),
         },
       ],
     }),
   ],
-  providers: [Logger, MarketHashNameTaskService, TmHistoryService],
+  providers: [
+    Logger,
+    TmHistoryQueueService,
+    // TmHistoryProcessor,
+    MarketHashNameTaskService,
+    TmHistoryService,
+  ],
 })
 export class TmHistoryModule {}

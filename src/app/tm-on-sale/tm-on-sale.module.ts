@@ -19,11 +19,13 @@ import {
   ItemValueSchema,
   ItemValue,
 } from '../../common/schemas/item-value.schema';
-import TmOnSaleProcessor from './tm-on-sale.processor';
+import { join } from 'path';
 import {
   TmHistory,
   TmHistorySchema,
 } from '../../common/schemas/tm-history.schema';
+import TmOnSaleProcessor from './tm-on-sale.processor';
+import TmOnSaleQueueService from './tm-on-sale.queue-service';
 
 @Module({
   imports: [
@@ -39,12 +41,17 @@ import {
       processors: [
         {
           name: 'start',
-          // path: join(__dirname, 'tm-on-sale.processor.js'),
-          callback: TmOnSaleProcessor,
+          path: join(__dirname, 'tm-on-sale.processor-functional.js'),
         },
       ],
     }),
   ],
-  providers: [Logger, MarketHashNameTaskService, TmOnSaleService],
+  providers: [
+    Logger,
+    TmOnSaleQueueService,
+    // TmOnSaleProcessor,
+    MarketHashNameTaskService,
+    TmOnSaleService,
+  ],
 })
 export class TmOnSaleModule {}

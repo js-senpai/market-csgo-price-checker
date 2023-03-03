@@ -4,7 +4,7 @@ import { MarketHashNameTaskService } from '../market-hash-name-task/market-hash-
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { InjectQueue } from '@nestjs/bull';
-import { Job, Queue } from 'bull';
+import { Queue } from 'bull';
 import {
   TmHistoryLog,
   TmHistoryLogDocument,
@@ -17,12 +17,6 @@ import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
 import { CronTime } from 'cron';
 import { PRODUCT_STATUS } from '../../common/enums/mongo.enum';
 import { TM_KEYS } from '../../common/constants/general.constant';
-import axios from 'axios';
-import { ConfigService } from '@nestjs/config';
-import {
-  MarketHashName,
-  MarketHashNameDocument,
-} from '../../common/schemas/market-hash-name.schema';
 
 @Injectable()
 export class TmHistoryService {
@@ -37,9 +31,6 @@ export class TmHistoryService {
     private readonly tmHistoryLogModel: Model<TmHistoryLogDocument>,
     @InjectQueue('tm-history-queue')
     private readonly tmHistoryQueue: Queue,
-    private readonly configService: ConfigService,
-    @InjectModel(MarketHashName.name)
-    private readonly marketHashNameModel: Model<MarketHashNameDocument>,
   ) {}
 
   @OnEvent('tm-history-event')
@@ -77,6 +68,7 @@ export class TmHistoryService {
           },
           {
             attempts: 0,
+            priority: currentPage,
             // timeout: 30 * 1000,
           },
         );
@@ -95,7 +87,7 @@ export class TmHistoryService {
           keyIndex += 1;
         }
       }
-      jobTmHistoryChecker.setTime(new CronTime('*/5 * * * *'));
+      jobTmHistoryChecker.setTime(new CronTime('*/1 * * * *'));
     } catch (e) {
       this.logger.error(
         'Error in the start method',
@@ -154,8 +146,8 @@ export class TmHistoryService {
           }
         }
       } else {
-        jobTmHistoryChecker.stop();
         this.eventEmitter.emit('check-price-event');
+        jobTmHistoryChecker.stop();
       }
     } catch (e) {
       this.logger.error(
@@ -194,118 +186,6 @@ export class TmHistoryService {
         e.stack,
         TmHistoryService.name,
       );
-    }
-  }
-
-  async startParser(job: Job): Promise<{ ok: string }> {
-    const { docs = [], listName = '', token } = job.data;
-    try {
-      this.logger.log(
-        `The history list with name "${listName}" has started`,
-        TmHistoryService.name,
-      );
-      const {
-        data: { data = {} },
-      }: {
-        data: {
-          data: {
-            [key: string]: {
-              history: [number, number][];
-            }[];
-          };
-        };
-      } = await axios.get(
-        `${this.configService.get(
-          'CSGO_MARKET_URL',
-        )}/get-list-items-info?key=${token}&${docs
-          .map(({ name }) => `list_hash_name[]=${name}`)
-          .join('&')}`,
-      );
-      const getData = Object.entries({ ...data });
-      await Promise.all(
-        getData.map(async ([name, items]) => {
-          const parent = await this.marketHashNameModel.findOne({
-            name,
-          });
-          if (!parent) {
-            this.logger.error(
-              `Error in start method. The history list name ${listName}. The error was in an interaction where the item had the name "${name}".`,
-            );
-          } else {
-            const filteredData = items.flatMap(({ history = [] }) => history);
-            await Promise.all(
-              filteredData.map(
-                async ([id, price]) =>
-                  await this.tmHistoryModel.updateOne(
-                    {
-                      id,
-                      parent,
-                    },
-                    {
-                      price,
-                      status: PRODUCT_STATUS.ON_SALE,
-                    },
-                    {
-                      upsert: true,
-                    },
-                  ),
-              ),
-            );
-            await this.tmHistoryModel.updateMany(
-              {
-                id: {
-                  $nin: filteredData.map(([id]) => id),
-                },
-                parent,
-              },
-              {
-                status: PRODUCT_STATUS.NEED_CHECK,
-              },
-            );
-            const getNewItems = await this.tmHistoryModel
-              .find({
-                id: {
-                  $in: filteredData.map(([id]) => id),
-                },
-              })
-              .select('_id');
-            await this.marketHashNameModel.updateOne(
-              {
-                _id: parent._id,
-              },
-              {
-                $addToSet: {
-                  priceHistory: {
-                    $each: getNewItems.map(({ _id }) => _id),
-                  },
-                },
-              },
-            );
-          }
-        }),
-      );
-      const totalNotFound = await this.tmHistoryModel.count({
-        status: PRODUCT_STATUS.NEED_CHECK,
-      });
-      const totalOnSale = await this.tmHistoryModel.count({
-        status: PRODUCT_STATUS.ON_SALE,
-      });
-      this.logger.log(
-        `The history list with name "${listName}" has finished. Total items with status "on_sale" - ${totalOnSale}.Total items with status "not_found" - ${totalNotFound}.`,
-        TmHistoryService.name,
-      );
-      return {
-        ok: 'The task has successfully finished',
-      };
-    } catch (e) {
-      this.logger.error(
-        `Error in start method. The history list name ${listName}. Response status ${
-          e?.response?.status || 500
-        } `,
-        e.stack,
-        TmHistoryService.name,
-      );
-      throw e;
     }
   }
 }

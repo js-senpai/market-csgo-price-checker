@@ -1,9 +1,15 @@
-import { TmHistoryService } from './tm-history.service';
-import { ApplicationContext } from '../../app.context';
+import { Injectable } from '@nestjs/common';
+import { Process, Processor } from '@nestjs/bull';
+import { Job } from 'bull';
+import TmHistoryQueueService from './tm-history.queue-service';
 
-const TmHistoryProcessor = async (job): Promise<{ ok: string }> => {
-  const context = await ApplicationContext();
-  const service = context.get(TmHistoryService);
-  return await service.startParser(job);
-};
-export default TmHistoryProcessor;
+@Injectable()
+@Processor('tm-history-queue')
+export default class TmHistoryProcessor {
+  constructor(private readonly tmHistoryQueueService: TmHistoryQueueService) {}
+
+  @Process('start')
+  async start(job: Job): Promise<{ ok: string }> {
+    return await this.tmHistoryQueueService.start(job);
+  }
+}

@@ -89,7 +89,7 @@ export class CheckPriceService {
               }),
             );
             totalItems += await this.tmHistoryModel.count({
-              parent,
+              parent: _id,
               status: PRODUCT_STATUS.FOUND,
             });
           }
