@@ -1,6 +1,5 @@
 import { WinstonModuleOptions } from 'nest-winston';
 import * as winston from 'winston';
-import * as dayjs from 'dayjs';
 import 'winston-daily-rotate-file';
 export const getWinstonConfig = (): WinstonModuleOptions => ({
   format: winston.format.combine(
@@ -30,18 +29,30 @@ export const getWinstonConfig = (): WinstonModuleOptions => ({
       ),
     }),
     new winston.transports.DailyRotateFile({
-      filename: `logs/info-${dayjs().format('DD.MM.YYYY')}.log`,
+      datePattern: 'DD.MM.YYYY',
+      filename: `logs/info-%DATE%.log`,
       level: 'info',
       handleExceptions: true,
+      zippedArchive: true,
+      maxSize: '100m',
+      maxFiles: '7d',
     }),
     new winston.transports.DailyRotateFile({
-      filename: `logs/errors-${dayjs().format('DD.MM.YYYY')}.log`,
+      filename: `logs/errors-%DATE%.log`,
+      datePattern: 'DD.MM.YYYY',
       level: 'error',
+      zippedArchive: true,
+      maxSize: '100m',
+      maxFiles: '7d',
     }),
   ],
   exceptionHandlers: [
     new winston.transports.DailyRotateFile({
-      filename: `logs/exceptions-${dayjs().format('DD.MM.YYYY')}.log`,
+      filename: `logs/exceptions-%DATE%.log`,
+      datePattern: 'DD.MM.YYYY',
+      zippedArchive: true,
+      maxSize: '100m',
+      maxFiles: '7d',
     }),
   ],
 });

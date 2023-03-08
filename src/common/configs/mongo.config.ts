@@ -6,4 +6,6 @@ export const getMongoConfig = async (
 ): Promise<MongooseModuleOptions> => ({
   uri: configService.get<string>('MONGO_URI'),
   authSource: 'admin',
+  useNewUrlParser: true,
+  useUnifiedTopology: true,
 });

@@ -68,7 +68,6 @@ export class TmHistoryService {
           },
           {
             attempts: 0,
-            priority: currentPage,
             // timeout: 30 * 1000,
           },
         );
@@ -87,7 +86,7 @@ export class TmHistoryService {
           keyIndex += 1;
         }
       }
-      jobTmHistoryChecker.setTime(new CronTime('*/1 * * * *'));
+      jobTmHistoryChecker.setTime(new CronTime('*/30 * * * * *'));
     } catch (e) {
       this.logger.error(
         'Error in the start method',
@@ -107,44 +106,46 @@ export class TmHistoryService {
       );
       const getJobs = await this.tmHistoryLogModel.find({ available: true });
       if (getJobs.length) {
-        for (const { jobId, status = 'active' } of getJobs) {
-          const job = await this.tmHistoryQueue.getJob(jobId);
-          if (job) {
-            const getStateJob = await job.getState();
-            const progress = await job.progress();
-            const available = !(
-              (await job.isStuck()) ||
-              (await job.isCompleted()) ||
-              (await job.isFailed())
-            );
-            await this.tmHistoryLogModel.updateOne(
-              {
-                jobId,
-              },
-              {
-                progress,
-                status: getStateJob,
-                available,
-                ...(job.failedReason && {
-                  message: job.failedReason,
-                }),
-              },
-            );
-            if (!available && status !== 'active') {
-              await job.remove();
+        await Promise.all(
+          getJobs.map(async ({ jobId, status = 'active' }) => {
+            const job = await this.tmHistoryQueue.getJob(jobId);
+            if (job) {
+              const getStateJob = await job.getState();
+              const progress = await job.progress();
+              const available = !(
+                (await job.isStuck()) ||
+                (await job.isCompleted()) ||
+                (await job.isFailed())
+              );
+              await this.tmHistoryLogModel.updateOne(
+                {
+                  jobId,
+                },
+                {
+                  progress,
+                  status: getStateJob,
+                  available,
+                  ...(job.failedReason && {
+                    message: job.failedReason,
+                  }),
+                },
+              );
+              if (!available && status !== 'active') {
+                await job.remove();
+              }
+            } else {
+              await this.tmHistoryLogModel.updateOne(
+                {
+                  jobId,
+                },
+                {
+                  available: false,
+                  status: 'unknown',
+                },
+              );
             }
-          } else {
-            await this.tmHistoryLogModel.updateOne(
-              {
-                jobId,
-              },
-              {
-                available: false,
-                status: 'unknown',
-              },
-            );
-          }
-        }
+          }),
+        );
       } else {
         this.eventEmitter.emit('check-price-event');
         jobTmHistoryChecker.stop();

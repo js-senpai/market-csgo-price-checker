@@ -79,7 +79,6 @@ export class TmOnSaleService {
             token: TM_KEYS[keyIndex],
           },
           {
-            priority: currentPage,
             attempts: 0,
             // timeout: 30 * 1000,
           },
@@ -99,7 +98,7 @@ export class TmOnSaleService {
           keyIndex += 1;
         }
       }
-      jobTmOnSaleChecker.setTime(new CronTime('*/1 * * * *'));
+      jobTmOnSaleChecker.setTime(new CronTime('*/30 * * * * *'));
     } catch (e) {
       this.logger.error(
         'Error in the start method',
@@ -119,44 +118,46 @@ export class TmOnSaleService {
       );
       const getJobs = await this.tmOnSaleLogModel.find({ available: true });
       if (getJobs.length) {
-        for (const { jobId, status = 'active' } of getJobs) {
-          const job = await this.tmOnSaleQueue.getJob(jobId);
-          if (job) {
-            const getStateJob = await job.getState();
-            const progress = await job.progress();
-            const available = !(
-              (await job.isStuck()) ||
-              (await job.isCompleted()) ||
-              (await job.isFailed())
-            );
-            await this.tmOnSaleLogModel.updateOne(
-              {
-                jobId,
-              },
-              {
-                progress,
-                status: getStateJob,
-                available,
-                ...(job.failedReason && {
-                  message: job.failedReason,
-                }),
-              },
-            );
-            if (!available && status !== 'active') {
-              await job.remove();
+        await Promise.all(
+          getJobs.map(async ({ jobId, status = 'active' }) => {
+            const job = await this.tmOnSaleQueue.getJob(jobId);
+            if (job) {
+              const getStateJob = await job.getState();
+              const progress = await job.progress();
+              const available = !(
+                (await job.isStuck()) ||
+                (await job.isCompleted()) ||
+                (await job.isFailed())
+              );
+              await this.tmOnSaleLogModel.updateOne(
+                {
+                  jobId,
+                },
+                {
+                  progress,
+                  status: getStateJob,
+                  available,
+                  ...(job.failedReason && {
+                    message: job.failedReason,
+                  }),
+                },
+              );
+              if (!available && status !== 'active') {
+                await job.remove();
+              }
+            } else {
+              await this.tmOnSaleLogModel.updateOne(
+                {
+                  jobId,
+                },
+                {
+                  available: false,
+                  status: 'unknown',
+                },
+              );
             }
-          } else {
-            await this.tmOnSaleLogModel.updateOne(
-              {
-                jobId,
-              },
-              {
-                available: false,
-                status: 'unknown',
-              },
-            );
-          }
-        }
+          }),
+        );
       } else {
         this.eventEmitter.emit('tm-history-event');
         jobTmOnSaleChecker.stop();

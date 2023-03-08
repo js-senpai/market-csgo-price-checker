@@ -44,26 +44,31 @@ export class CheckPriceService {
       );
       const getItems = await this.marketHashNameModel
         .find()
-        .select(['status', 'priceInfo', 'priceHistory']);
+        .populate({
+          path: 'priceHistory',
+          match: {
+            status: PRODUCT_STATUS.NEED_CHECK,
+          },
+          select: ['price', 'id', 'parent', '_id'],
+        })
+        // .populate({
+        //   path: 'priceInfo',
+        //   match: {
+        //     status: PRODUCT_STATUS.NEED_CHECK,
+        //   },
+        //   select: ['_id', 'tmId', 'asset', 'classId', 'instanceId', 'price'],
+        // })
+        .exec();
       await Promise.all(
-        getItems.map(async ({ priceInfo = [], priceHistory = [], _id }) => {
-          if (priceHistory.length && priceInfo.length) {
-            const getPriceHistory = await this.tmHistoryModel
-              .find({
-                tmId: {
-                  $in: priceHistory.map(({ tmId }) => tmId),
-                },
-                status: PRODUCT_STATUS.NEED_CHECK,
-                parent: _id,
-              })
-              .select(['id', 'price', 'parent']);
+        getItems.map(async ({ priceHistory = [] }) => {
+          if (priceHistory.length) {
             await Promise.all(
-              getPriceHistory.map(async ({ price, id, parent }) => {
+              priceHistory.map(async ({ price, id, parent }) => {
                 const getPriceOnSale = await this.tmOnSaleModel
                   .findOne({
                     price,
-                    status: PRODUCT_STATUS.NEED_CHECK,
                     parent,
+                    status: PRODUCT_STATUS.NEED_CHECK,
                   })
                   .select([
                     '_id',
@@ -71,7 +76,7 @@ export class CheckPriceService {
                     'asset',
                     'classId',
                     'instanceId',
-                    'status',
+                    'price',
                   ]);
                 if (getPriceOnSale) {
                   await this.tmHistoryModel.updateOne(
@@ -89,7 +94,7 @@ export class CheckPriceService {
                   );
                   await this.tmOnSaleModel.updateOne(
                     {
-                      _id: getPriceOnSale._id,
+                      tmId: getPriceOnSale.tmId,
                     },
                     {
                       status: PRODUCT_STATUS.FOUND,
@@ -108,13 +113,14 @@ export class CheckPriceService {
         `The start method has finished. Total items (${totalItems}) was updated.`,
         CheckPriceService.name,
       );
-      this.eventEmitter.emit('tm-on-sale-event');
     } catch (e) {
       this.logger.error(
         'Error in the start method',
         e.stack,
         CheckPriceService.name,
       );
+    } finally {
+      this.eventEmitter.emit('tm-on-sale-event');
     }
   }
 }

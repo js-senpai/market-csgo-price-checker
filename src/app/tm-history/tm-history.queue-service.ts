@@ -1,4 +1,4 @@
-import { Job, Queue } from 'bull';
+import { Job } from 'bull';
 import axios from 'axios';
 import { PRODUCT_STATUS } from '../../common/enums/mongo.enum';
 import { ConfigService } from '@nestjs/config';
@@ -8,7 +8,6 @@ import {
   MarketHashNameDocument,
 } from '../../common/schemas/market-hash-name.schema';
 import { Model } from 'mongoose';
-import { InjectQueue } from '@nestjs/bull';
 import {
   TmHistory,
   TmHistoryDocument,
@@ -52,23 +51,33 @@ export default class TmHistoryQueueService {
       const getData = Object.entries({ ...data });
       await Promise.all(
         getData.map(async ([name, items]) => {
-          const parent = await this.marketHashNameModel.findOne({
-            name,
-          });
+          const parent = await this.marketHashNameModel
+            .findOne({
+              name,
+            })
+            .select('_id');
           if (parent) {
             const filteredData = Object.entries(items).flatMap(
               ([name, value]) => (name === 'history' ? value : []),
             );
             await Promise.all(
               filteredData.map(async ([id, price]) => {
+                const getTmHistory = await this.tmHistoryModel
+                  .findOne({
+                    id,
+                    parent: parent._id,
+                  })
+                  .select('status');
                 await this.tmHistoryModel.updateOne(
                   {
                     id,
-                    parent,
+                    parent: parent._id,
                   },
                   {
                     price,
-                    status: PRODUCT_STATUS.ON_SALE,
+                    ...(getTmHistory?.status !== PRODUCT_STATUS.FOUND && {
+                      status: PRODUCT_STATUS.NEED_CHECK,
+                    }),
                   },
                   {
                     upsert: true,
@@ -76,27 +85,17 @@ export default class TmHistoryQueueService {
                 );
               }),
             );
-            await this.tmHistoryModel.updateMany(
-              {
-                id: {
-                  $nin: filteredData.map(([id]) => id),
-                },
-                parent,
-              },
-              {
-                status: PRODUCT_STATUS.NEED_CHECK,
-              },
-            );
             const getNewItems = await this.tmHistoryModel
               .find({
                 id: {
                   $in: filteredData.map(([id]) => id),
                 },
+                parent: parent._id,
               })
               .select('_id');
             await this.marketHashNameModel.updateOne(
               {
-                name: parent.name,
+                _id: parent._id,
               },
               {
                 $addToSet: {
@@ -109,14 +108,13 @@ export default class TmHistoryQueueService {
           }
         }),
       );
-      const totalNotFound = await this.tmHistoryModel.count({
-        status: PRODUCT_STATUS.NEED_CHECK,
-      });
-      const totalOnSale = await this.tmHistoryModel.count({
-        status: PRODUCT_STATUS.ON_SALE,
-      });
+      const totalNeedCheck = getData.flatMap(([_, items]) =>
+        Object.entries(items).flatMap(([name, value]) =>
+          name === 'history' ? value : [],
+        ),
+      ).length;
       this.logger.log(
-        `The history list with name "${listName}" has finished. Total items with status "on_sale" - ${totalOnSale}.Total items with status "not_found" - ${totalNotFound}.`,
+        `The history list with name "${listName}" has finished. Total items with status has successfully created - ${totalNeedCheck}.`,
         TmHistoryQueueService.name,
       );
       return {

@@ -57,16 +57,24 @@ export default class TmOnSaleQueueService {
       const getData = Object.entries({ ...data });
       await Promise.all(
         getData.map(async ([name, items]) => {
-          const parent = await this.marketHashNameModel.findOne({
-            name,
-          });
+          const parent = await this.marketHashNameModel
+            .findOne({
+              name,
+            })
+            .select('_id');
           if (parent) {
             await Promise.all([
               items.map(async (item) => {
+                const getTmOnSale = await this.tmOnSaleModel
+                  .findOne({
+                    tmId: item.id,
+                    parent: parent._id,
+                  })
+                  .select('status');
                 await this.tmOnSaleModel.updateOne(
                   {
                     tmId: item.id,
-                    parent,
+                    parent: parent._id,
                   },
                   {
                     tmId: item.id,
@@ -74,7 +82,9 @@ export default class TmOnSaleQueueService {
                     classId: item.class,
                     instanceId: item.instance,
                     price: +item.price / 100,
-                    status: PRODUCT_STATUS.ON_SALE,
+                    ...(getTmOnSale?.status !== PRODUCT_STATUS.FOUND && {
+                      status: PRODUCT_STATUS.ON_SALE,
+                    }),
                   },
                   {
                     upsert: true,
@@ -87,7 +97,8 @@ export default class TmOnSaleQueueService {
                 tmId: {
                   $nin: items.map(({ id }) => id),
                 },
-                parent,
+                parent: parent._id,
+                status: PRODUCT_STATUS.ON_SALE,
               },
               {
                 status: PRODUCT_STATUS.NEED_CHECK,
@@ -98,11 +109,12 @@ export default class TmOnSaleQueueService {
                 tmId: {
                   $in: items.map(({ id }) => id),
                 },
+                parent: parent._id,
               })
               .select('_id');
             await this.marketHashNameModel.updateOne(
               {
-                name: parent.name,
+                _id: parent._id,
               },
               {
                 $addToSet: {
@@ -115,11 +127,20 @@ export default class TmOnSaleQueueService {
           }
         }),
       );
+      const getItems = getData.flatMap(([_, items]) =>
+        items.flatMap(({ id }) => id),
+      );
       const totalOnSale = await this.tmOnSaleModel.count({
         status: PRODUCT_STATUS.ON_SALE,
+        tmId: {
+          $in: getItems,
+        },
       });
       const totalNotFound = await this.tmOnSaleModel.count({
         status: PRODUCT_STATUS.NEED_CHECK,
+        tmId: {
+          $nin: getItems,
+        },
       });
       this.logger.log(
         `The on sale list with name "${listName}" has finished. Total items with status "on_sale" - ${totalOnSale}.Total items with status "not_found" - ${totalNotFound}.`,

@@ -27,7 +27,7 @@ export class MarketHashNameTaskService {
     private readonly itemValueModel: PaginateModel<ItemValueDocument>,
   ) {}
 
-  @Cron('45 19 */1 * *', {
+  @Cron('5 11 */1 * *', {
     name: 'market-hash-name-task',
   })
   async start() {
@@ -56,63 +56,35 @@ export class MarketHashNameTaskService {
         name,
         value,
       }));
-      // for (const { name, value } of getItems) {
-      //   await this.marketHashNameModel.updateOne(
-      //     {
-      //       name,
-      //     },
-      //     {
-      //       name,
-      //     },
-      //     {
-      //       upsert: true,
-      //     },
-      //   );
-      //   const getMarketHashModel = await this.marketHashNameModel.findOne({
-      //     name,
-      //   });
-      //   const newItemValue = await this.itemValueModel.create({
-      //     value,
-      //     parent: getMarketHashModel._id,
-      //   });
-      //   await this.marketHashNameModel.updateOne(
-      //     {
-      //       _id: getMarketHashModel._id,
-      //     },
-      //     {
-      //       $addToSet: {
-      //         priceValues: newItemValue._id,
-      //       },
-      //     },
-      //   );
-      // }
       await Promise.all(
         getItems.map(async ({ name, value }) => {
+          await this.marketHashNameModel.updateOne(
+            {
+              name,
+            },
+            {
+              name,
+            },
+            {
+              upsert: true,
+            },
+          );
           const getMarketHashModel = await this.marketHashNameModel
-            .findOneAndUpdate(
-              {
-                name,
-              },
-              {
-                name,
-              },
-              {
-                upsert: true,
-                rawResult: true,
-              },
-            )
-            .select(['_id', 'name']);
-          const newItemValue = await this.itemValueModel.create({
+            .findOne({
+              name,
+            })
+            .select('_id');
+          const getItemValue = await this.itemValueModel.create({
             value,
-            parent: getMarketHashModel.value._id,
+            parent: getMarketHashModel._id,
           });
           await this.marketHashNameModel.updateOne(
             {
-              name: getMarketHashModel.value.name,
+              _id: getMarketHashModel._id,
             },
             {
               $addToSet: {
-                priceValues: newItemValue._id,
+                priceValues: getItemValue._id,
               },
             },
           );
