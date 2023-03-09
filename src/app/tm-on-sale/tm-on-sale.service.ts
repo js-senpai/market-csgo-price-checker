@@ -159,6 +159,7 @@ export class TmOnSaleService {
           }),
         );
       } else {
+        await this.tmOnSaleLogModel.deleteMany();
         this.eventEmitter.emit('tm-history-event');
         jobTmOnSaleChecker.stop();
       }

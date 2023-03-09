@@ -147,6 +147,7 @@ export class TmHistoryService {
           }),
         );
       } else {
+        await this.tmHistoryLogModel.deleteMany();
         this.eventEmitter.emit('check-price-event');
         jobTmHistoryChecker.stop();
       }

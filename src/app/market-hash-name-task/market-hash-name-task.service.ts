@@ -27,7 +27,7 @@ export class MarketHashNameTaskService {
     private readonly itemValueModel: PaginateModel<ItemValueDocument>,
   ) {}
 
-  @Cron('5 11 */1 * *', {
+  @Cron('30 0 */1 * *', {
     name: 'market-hash-name-task',
   })
   async start() {
@@ -42,8 +42,11 @@ export class MarketHashNameTaskService {
     const jobTmHistoryChecker = this.schedulerRegistry.getCronJob(
       'tm-history-checker-task',
     );
+    const jobCheckPriceChecker =
+      this.schedulerRegistry.getCronJob('check-price-task');
     jobTmOnSaleChecker.stop();
     jobTmHistoryChecker.stop();
+    jobCheckPriceChecker.stop();
     try {
       const { data, status } = await axios.get(
         `${this.configService.get(

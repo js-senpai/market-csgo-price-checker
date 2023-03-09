@@ -34,7 +34,6 @@ export const getWinstonConfig = (): WinstonModuleOptions => ({
       level: 'info',
       handleExceptions: true,
       zippedArchive: true,
-      maxSize: '100m',
       maxFiles: '7d',
     }),
     new winston.transports.DailyRotateFile({
@@ -42,7 +41,6 @@ export const getWinstonConfig = (): WinstonModuleOptions => ({
       datePattern: 'DD.MM.YYYY',
       level: 'error',
       zippedArchive: true,
-      maxSize: '100m',
       maxFiles: '7d',
     }),
   ],
@@ -51,7 +49,6 @@ export const getWinstonConfig = (): WinstonModuleOptions => ({
       filename: `logs/exceptions-%DATE%.log`,
       datePattern: 'DD.MM.YYYY',
       zippedArchive: true,
-      maxSize: '100m',
       maxFiles: '7d',
     }),
   ],
