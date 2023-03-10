@@ -32,7 +32,7 @@ export default class CheckPriceQueueService {
       const getPriceHistory = await this.tmHistoryModel.find({
         status: PRODUCT_STATUS.NEED_CHECK,
       });
-      for (const { price, id, parent } of getPriceHistory) {
+      for (const { price, parent, _id } of getPriceHistory) {
         const getPriceOnSale = await this.tmOnSaleModel.findOne({
           price,
           parent,
@@ -41,8 +41,7 @@ export default class CheckPriceQueueService {
         if (getPriceOnSale) {
           await this.tmHistoryModel.updateOne(
             {
-              id,
-              parent,
+              _id,
             },
             {
               tmId: getPriceOnSale.tmId,
@@ -54,7 +53,7 @@ export default class CheckPriceQueueService {
           );
           await this.tmOnSaleModel.updateOne(
             {
-              tmId: getPriceOnSale.tmId,
+              _id: getPriceOnSale._id,
             },
             {
               status: PRODUCT_STATUS.FOUND,

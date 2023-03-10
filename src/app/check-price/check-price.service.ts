@@ -111,7 +111,7 @@ export class CheckPriceService {
           }),
         );
       } else {
-        // await this.checkPriceLogModel.deleteMany();
+        await this.checkPriceLogModel.deleteMany();
         this.eventEmitter.emit('tm-on-sale-event');
         jobCheckPriceChecker.stop();
       }
