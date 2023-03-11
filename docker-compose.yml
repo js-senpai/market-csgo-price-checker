@@ -7,7 +7,7 @@ services:
     env_file:
       - .env
     ports:
-      - "27020:27017"
+      - "27021:27017"
     networks:
       - steam-csgo-checker-network
     volumes:

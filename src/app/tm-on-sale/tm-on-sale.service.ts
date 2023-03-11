@@ -69,7 +69,9 @@ export class TmOnSaleService {
             currentPage,
             select: ['name'],
           });
-        const name = `${pagingCounter}-${pagingCounter + 50}`;
+        const finishCount =
+          currentPage !== totalPages ? pagingCounter + 49 : totalPages;
+        const name = `${pagingCounter}-${finishCount}`;
         // await timer(30 * 1000);
         const job = await this.tmOnSaleQueue.add(
           'start',

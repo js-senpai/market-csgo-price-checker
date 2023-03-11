@@ -49,72 +49,66 @@ export default class TmHistoryQueueService {
           .join('&')}`,
       );
       const getData = Object.entries({ ...data });
-      await Promise.all(
-        getData.map(async ([name, items]) => {
-          const parent = await this.marketHashNameModel
-            .findOne({
-              name,
-            })
-            .select('_id');
-          if (parent) {
-            const filteredData = Object.entries(items).flatMap(
-              ([name, value]) => (name === 'history' ? value : []),
-            );
-            await Promise.all(
-              filteredData.map(async ([id, price]) => {
-                const getTmHistory = await this.tmHistoryModel
-                  .findOne({
-                    id,
-                    parent: parent._id,
-                  })
-                  .select('status');
-                await this.tmHistoryModel.updateOne(
-                  {
-                    id,
-                    parent: parent._id,
-                  },
-                  {
-                    price,
-                    ...(getTmHistory?.status !== PRODUCT_STATUS.FOUND && {
-                      status: PRODUCT_STATUS.NEED_CHECK,
-                    }),
-                  },
-                  {
-                    upsert: true,
-                  },
-                );
-              }),
-            );
-            const getNewItems = await this.tmHistoryModel
-              .find({
-                id: {
-                  $in: filteredData.map(([id]) => id),
-                },
-                parent: parent._id,
+      const childIds = [
+        ...(await Promise.all(
+          getData.flatMap(async ([name, items]) => {
+            const parent = await this.marketHashNameModel
+              .findOne({
+                name,
               })
               .select('_id');
-            await this.marketHashNameModel.updateOne(
-              {
-                _id: parent._id,
-              },
-              {
-                $addToSet: {
-                  priceHistory: {
-                    $each: getNewItems.map(({ _id }) => _id),
+            if (parent) {
+              const filteredData = Object.entries(items).flatMap(
+                ([name, value]) => (name === 'history' ? value : []),
+              );
+              const getIds = await Promise.all(
+                filteredData.flatMap(async ([id, price]) => {
+                  const getTmHistory = await this.tmHistoryModel
+                    .findOne({
+                      id,
+                      parent: parent._id,
+                    })
+                    .select('status');
+                  const { _id } = await this.tmHistoryModel.findOneAndUpdate(
+                    {
+                      id,
+                      parent: parent._id,
+                    },
+                    {
+                      price,
+                      ...(getTmHistory?.status !== PRODUCT_STATUS.FOUND && {
+                        status: PRODUCT_STATUS.NEED_CHECK,
+                      }),
+                    },
+                    {
+                      upsert: true,
+                      new: true,
+                    },
+                  );
+                  return _id;
+                }),
+              );
+              await this.marketHashNameModel.updateOne(
+                {
+                  _id: parent._id,
+                },
+                {
+                  $addToSet: {
+                    priceHistory: {
+                      $each: getIds,
+                    },
                   },
                 },
-              },
-            );
-          }
-        }),
-      );
-      const totalNeedCheck = getData.flatMap(([_, items]) =>
-        Object.entries(items).flatMap(([name, value]) =>
-          name === 'history' ? value : [],
-        ),
-      ).length;
+              );
+              return getIds;
+            }
+          }),
+        )),
+      ]
+        .flat(1)
+        .filter((item) => item);
       this.logger.log(
-        `The history list with name "${listName}" has finished. Total items with status has successfully created - ${totalNeedCheck}.`,
+        `The history list with name "${listName}" has finished. Total items with status has successfully created - ${childIds.length}.`,
         TmHistoryQueueService.name,
       );
       return {
