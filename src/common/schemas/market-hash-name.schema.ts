@@ -3,14 +3,14 @@ import { HydratedDocument, Types } from 'mongoose';
 import { TmHistory } from './tm-history.schema';
 import { TmOnSale } from './tm-on-sale.schema';
 import * as paginate from 'mongoose-paginate-v2';
-import { PRODUCT_STATUS } from '../enums/mongo.enum';
 import { ItemValue } from './item-value.schema';
+
 export type MarketHashNameDocument = HydratedDocument<MarketHashName>;
 
 @Schema({
   collection: 'marketHashNames',
   versionKey: false,
-  timestamps: { createdAt: 'createdAt' },
+  timestamps: { createdAt: 'createdAt', updatedAt: 'updatedAt' },
 })
 export class MarketHashName {
   @Prop({ unique: true, required: true, type: String, index: true })

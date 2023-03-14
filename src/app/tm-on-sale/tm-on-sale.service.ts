@@ -100,7 +100,7 @@ export class TmOnSaleService {
           keyIndex += 1;
         }
       }
-      jobTmOnSaleChecker.setTime(new CronTime('*/30 * * * * *'));
+      jobTmOnSaleChecker.setTime(new CronTime('*/10 * * * * *'));
     } catch (e) {
       this.logger.error(
         'Error in the start method',

@@ -2,13 +2,15 @@ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument, Types } from 'mongoose';
 import { MarketHashName } from './market-hash-name.schema';
 import { PRODUCT_STATUS } from '../enums/mongo.enum';
-
 export type TmOnSaleDocument = HydratedDocument<TmOnSale>;
 
 @Schema({
   collection: 'tmOnSale',
   versionKey: false,
-  timestamps: { createdAt: 'createdAt', updatedAt: 'updatedAt' },
+  timestamps: {
+    createdAt: 'createdAt',
+    updatedAt: 'updatedAt',
+  },
 })
 export class TmOnSale {
   @Prop({ required: true, type: Number, index: true })

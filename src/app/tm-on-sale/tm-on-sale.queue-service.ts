@@ -13,7 +13,6 @@ import {
   MarketHashName,
   MarketHashNameDocument,
 } from '../../common/schemas/market-hash-name.schema';
-
 @Injectable()
 export default class TmOnSaleQueueService {
   constructor(

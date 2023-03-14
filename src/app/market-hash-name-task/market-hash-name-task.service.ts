@@ -13,7 +13,6 @@ import {
   ItemValue,
   ItemValueDocument,
 } from '../../common/schemas/item-value.schema';
-
 @Injectable()
 export class MarketHashNameTaskService {
   constructor(
@@ -27,7 +26,7 @@ export class MarketHashNameTaskService {
     private readonly itemValueModel: PaginateModel<ItemValueDocument>,
   ) {}
 
-  @Cron('45 16 */1 * *', {
+  @Cron('15 0 */1 * *', {
     name: 'market-hash-name-task',
   })
   async start() {

@@ -13,7 +13,6 @@ import {
   TmHistoryDocument,
 } from '../../common/schemas/tm-history.schema';
 import { Injectable, Logger } from '@nestjs/common';
-
 @Injectable()
 export default class TmHistoryQueueService {
   constructor(
